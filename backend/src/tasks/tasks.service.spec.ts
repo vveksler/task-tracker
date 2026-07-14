@@ -3,12 +3,20 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Prisma, TaskStatus } from '@prisma/client';
 import { TasksService } from './tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { TaskGateway } from '../gateway/task.gateway';
 
 const projectId = 'project-uuid';
+const workspaceId = 'workspace-uuid';
 const taskId = 'task-uuid';
+
+const withProject = (data: Record<string, unknown>) => ({
+  ...data,
+  project: { workspaceId },
+});
 
 describe('TasksService', () => {
   let service: TasksService;
+  let gateway: { emitTaskCreated: jest.Mock; emitTaskUpdated: jest.Mock; emitTaskMoved: jest.Mock; emitTaskDeleted: jest.Mock };
   let prisma: {
     project: { findUnique: jest.Mock };
     task: {
@@ -38,10 +46,18 @@ describe('TasksService', () => {
       $transaction: jest.fn(),
     };
 
+    gateway = {
+      emitTaskCreated: jest.fn(),
+      emitTaskUpdated: jest.fn(),
+      emitTaskMoved: jest.fn(),
+      emitTaskDeleted: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TasksService,
         { provide: PrismaService, useValue: prisma },
+        { provide: TaskGateway, useValue: gateway },
       ],
     }).compile();
 
@@ -49,15 +65,22 @@ describe('TasksService', () => {
   });
 
   describe('create', () => {
-    it('should create task at the bottom of column', async () => {
+    it('should create task at the bottom of column and emit event', async () => {
       prisma.project.findUnique.mockResolvedValue({ id: projectId });
       prisma.task.findFirst.mockResolvedValue({ order: 3 });
-      prisma.task.create.mockResolvedValue({
-        id: taskId,
-        title: 'Test',
-        order: 4,
-        status: TaskStatus.TODO,
-      });
+      prisma.task.create.mockResolvedValue(
+        withProject({
+          id: taskId,
+          title: 'Test',
+          order: 4,
+          status: TaskStatus.TODO,
+          description: null,
+          projectId,
+          assigneeId: null,
+          createdAt: new Date('2026-01-01'),
+          updatedAt: new Date('2026-01-01'),
+        }),
+      );
 
       const result = await service.create({
         title: 'Test',
@@ -67,6 +90,10 @@ describe('TasksService', () => {
       expect(result.order).toBe(4);
       const createCall = prisma.task.create.mock.calls[0]![0]!;
       expect(createCall.data.order).toBe(4);
+      expect(gateway.emitTaskCreated).toHaveBeenCalledWith(
+        workspaceId,
+        expect.objectContaining({ id: taskId }),
+      );
     });
 
     it('should throw if project not found', async () => {
@@ -79,7 +106,7 @@ describe('TasksService', () => {
   });
 
   describe('reorder', () => {
-    it('should compute midpoint between two anchors', async () => {
+    it('should compute midpoint between two anchors and emit moved', async () => {
       prisma.$transaction.mockImplementation(
         async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
       );
@@ -89,11 +116,19 @@ describe('TasksService', () => {
         .mockResolvedValueOnce({ order: 2.0 })
         .mockResolvedValueOnce({ order: 4.0 });
 
-      prisma.task.update.mockResolvedValue({
-        id: taskId,
-        status: TaskStatus.IN_PROGRESS,
-        order: 3.0,
-      });
+      prisma.task.update.mockResolvedValue(
+        withProject({
+          id: taskId,
+          status: TaskStatus.IN_PROGRESS,
+          order: 3.0,
+          title: 'T',
+          description: null,
+          projectId,
+          assigneeId: null,
+          createdAt: new Date('2026-01-01'),
+          updatedAt: new Date('2026-01-01'),
+        }),
+      );
 
       const result = await service.reorder(taskId, {
         status: TaskStatus.IN_PROGRESS,
@@ -104,6 +139,10 @@ describe('TasksService', () => {
       expect(result.order).toBe(3.0);
       const updateCall = prisma.task.update.mock.calls[0]![0]!;
       expect(updateCall.data.order).toBe(3.0);
+      expect(gateway.emitTaskMoved).toHaveBeenCalledWith(
+        workspaceId,
+        expect.objectContaining({ id: taskId }),
+      );
     });
 
     it('should place at bottom when no anchors provided', async () => {
@@ -116,10 +155,19 @@ describe('TasksService', () => {
         projectId,
       });
       prisma.task.findFirst.mockResolvedValue({ order: 5.0 });
-      prisma.task.update.mockResolvedValue({
-        id: taskId,
-        order: 6.0,
-      });
+      prisma.task.update.mockResolvedValue(
+        withProject({
+          id: taskId,
+          order: 6.0,
+          title: 'T',
+          status: TaskStatus.TODO,
+          description: null,
+          projectId,
+          assigneeId: null,
+          createdAt: new Date('2026-01-01'),
+          updatedAt: new Date('2026-01-01'),
+        }),
+      );
 
       const result = await service.reorder(taskId, {
         status: TaskStatus.TODO,
@@ -170,10 +218,19 @@ describe('TasksService', () => {
         projectId,
       });
       prisma.task.findFirst.mockResolvedValue({ order: 1.0 });
-      prisma.task.update.mockResolvedValue({
-        id: taskId,
-        order: 2.0,
-      });
+      prisma.task.update.mockResolvedValue(
+        withProject({
+          id: taskId,
+          order: 2.0,
+          title: 'T',
+          status: TaskStatus.TODO,
+          description: null,
+          projectId,
+          assigneeId: null,
+          createdAt: new Date('2026-01-01'),
+          updatedAt: new Date('2026-01-01'),
+        }),
+      );
 
       const result = await service.reorder(taskId, {
         status: TaskStatus.TODO,
