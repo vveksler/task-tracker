@@ -1,0 +1,26 @@
+---
+description: Commit message conventions
+alwaysApply: false
+---
+
+# Commit style
+
+Use Conventional Commits: `type(scope): short description`.
+
+Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `perf`.
+Scope: the domain folder touched (`auth`, `tasks`, `board`, `analytics`, `k8s`).
+
+When a commit fixes one of the deliberate edge cases from PROJECT_PLAN.md,
+say so explicitly in the body, e.g.:
+
+```
+fix(tasks): prevent order collision on concurrent reorder
+
+Two simultaneous PATCH /tasks/:id/reorder requests could read the same
+order value before either write completed. Wrapped the read-modify-write
+in a Prisma transaction with a re-read inside the transaction.
+```
+
+This turns the git history itself into interview material — a reviewer (or
+you, months later) can see exactly which commits were "found and fixed a real
+bug" versus routine feature work.

@@ -1,0 +1,81 @@
+---
+description: NestJS backend conventions
+globs: backend/**/*.ts
+alwaysApply: false
+---
+
+# NestJS module structure
+
+Each domain gets its own module under `backend/src/<domain>/`:
+```
+<domain>/
+  <domain>.module.ts
+  <domain>.controller.ts
+  <domain>.service.ts
+  dto/
+    create-<domain>.dto.ts
+    update-<domain>.dto.ts
+  <domain>.service.spec.ts   # unit tests
+```
+Domains so far: `auth`, `users`, `workspaces`, `projects`, `tasks`,
+`analytics`, `gateway` (WebSocket), `health`, `common` (shared guards,
+decorators, pipes), `prisma` (PrismaService, injected everywhere via DI —
+never instantiate PrismaClient directly outside this module).
+
+# DTOs and validation
+
+- Every controller input is a typed DTO class with `class-validator`
+  decorators (`@IsString()`, `@IsEnum()`, `@IsUUID()`, etc.) — never accept a
+  raw untyped body.
+- Use `@ApiProperty()` from `@nestjs/swagger` on every DTO field so Swagger
+  docs generate automatically — this is the contract-first habit from prior
+  experience, applied here as codegen-from-code instead of spec-first YAML.
+- Global `ValidationPipe` with `whitelist: true, forbidValidationErrors: true`
+  is set once in `main.ts` — don't re-validate manually in services.
+
+# Auth & guards
+
+- `JwtAuthGuard` protects any endpoint requiring a logged-in user — applied
+  via `@UseGuards(JwtAuthGuard)`, or globally with `@Public()` decorator to
+  opt out for routes like `/auth/login`.
+- Role checks for workspace membership (`admin` vs `member`) go through a
+  custom `WorkspaceRolesGuard` + `@Roles('admin')` decorator — never inline
+  `if (user.role !== 'admin')` checks scattered in service methods. One guard,
+  one place, testable in isolation.
+- Access token: short-lived, returned in the response body only, never set as
+  a cookie. Refresh token: httpOnly, Secure, SameSite=Strict cookie, longer
+  lived, stored (hashed) in the DB so it can be revoked on logout.
+
+# Prisma usage
+
+- All DB access goes through injected `PrismaService`, called from services,
+  never from controllers directly.
+- Use Prisma's `select`/`include` explicitly — don't return full rows with
+  sensitive fields (e.g. `passwordHash`) by default. Prefer a `select` that
+  names exactly the fields needed.
+- For anything beyond a simple query (aggregations, time-bucketed grouping),
+  it is fine to drop to `prisma.$queryRaw` — but parameterize it properly,
+  never string-concatenate user input into raw SQL.
+- Every schema change goes through `prisma migrate dev --name <description>`,
+  never hand-edited migration files.
+
+# WebSocket gateway
+
+- One `TaskGateway` in `backend/src/gateway/`, namespaced per workspace room
+  (`socket.join('workspace:' + workspaceId)`) so events never leak across
+  workspaces.
+- Every emitted event has a typed payload interface shared conceptually with
+  the frontend (mirror the shape in the frontend's socket types, even though
+  there's no shared package — keep them in sync manually and note it in a
+  comment).
+
+# Testing
+
+- Unit tests (`*.service.spec.ts`) for business logic — mock PrismaService.
+- e2e tests (`test/*.e2e-spec.ts`) using `supertest` against a real test
+  database for auth flow and at least the task reorder endpoint (this is
+  where the race-condition fix needs a regression test — see PROJECT_PLAN.md
+  Phase 3).
+- Do not skip tests for endpoints called out in PROJECT_PLAN.md's "Hunt for"
+  notes — those are exactly the spots that need a regression test once fixed,
+  or the bug can silently come back.

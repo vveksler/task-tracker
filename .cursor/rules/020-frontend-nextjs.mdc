@@ -1,0 +1,72 @@
+---
+description: Next.js frontend conventions
+globs: frontend/**/*.tsx,frontend/**/*.ts
+alwaysApply: false
+---
+
+# Server vs Client Components
+
+- Default to Server Components. Add `'use client'` only when a file actually
+  needs interactivity, browser APIs, hooks, or the WebSocket connection.
+- Data-heavy read-only pages (workspace list, project list, dashboard) fetch
+  data directly in the Server Component — no client-side `useEffect` fetch
+  for initial page data.
+- The Kanban board itself is a Client Component (drag state, WebSocket,
+  optimistic updates) — but its outer page shell (layout, header) stays a
+  Server Component wrapping it.
+
+# Folder structure
+
+```
+frontend/
+  app/
+    (auth)/login/  (auth)/register/
+    workspace/[id]/page.tsx
+    workspace/[id]/project/[projectId]/page.tsx
+    workspace/[id]/analytics/page.tsx
+  components/
+    board/          # Kanban board, columns, cards (client)
+    dashboard/       # chart components (client, receive data as props)
+    ui/               # small reusable primitives (button, input, badge)
+  lib/
+    api-client.ts     # typed fetch wrapper to the NestJS API
+    socket.ts          # Socket.io client singleton + typed event map
+    auth.ts             # token/session helpers
+  store/
+    board-store.ts      # Zustand store for board UI state
+```
+
+# State management
+
+- Zustand only for client-side UI state that multiple components need
+  (board drag state, optimistic task positions). Don't put server data that
+  belongs to a single page in a global store — pass it down as props or fetch
+  it locally.
+- Optimistic updates: on drag end, update the Zustand store immediately, fire
+  the API call, and on failure roll back to the last known-good state with a
+  visible toast/error — never fail silently (see PROJECT_PLAN.md Phase 5
+  "Hunt for").
+
+# Data fetching & types
+
+- All API calls go through `lib/api-client.ts` — no raw `fetch()` calls
+  scattered in components.
+- Define request/response types in one place per domain
+  (`lib/types/task.ts`, etc.) and import them on both the API client and the
+  components — do not duplicate shape definitions.
+- The refresh-token flow (401 → refresh → retry) lives in the API client as
+  an interceptor-style wrapper, not repeated per call site.
+
+# Styling
+
+- Tailwind CSS utility classes for layout/spacing. Keep component-specific
+  complex styling in the component file, not scattered global CSS.
+- No inline style objects for anything expressible in Tailwind.
+
+# Realtime
+
+- One Socket.io client instance (`lib/socket.ts`), connected once per
+  workspace the user is viewing, disconnected on unmount.
+- On reconnect (the socket's `connect` event firing again after a drop),
+  refetch the current board state rather than assuming no events were missed
+  — see PROJECT_PLAN.md Phase 4 "Hunt for".

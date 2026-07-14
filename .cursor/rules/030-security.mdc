@@ -1,0 +1,25 @@
+---
+description: Security rules — always applied across frontend and backend
+alwaysApply: true
+---
+
+# Security non-negotiables
+
+- Never render user-generated content via `dangerouslySetInnerHTML` without
+  passing it through `DOMPurify` first. If you don't need rich text
+  rendering, use plain `{content}` JSX interpolation and skip the sanitizer
+  entirely — that's the simpler and safer default.
+- Never put the access token in `localStorage` or `sessionStorage`. Access
+  token lives in memory (a module-level variable or a React context), refresh
+  token lives in an httpOnly Secure SameSite=Strict cookie set by the backend.
+- Any `href` built from user input must be validated to start with `http://`
+  or `https://` before rendering — reject `javascript:` and other schemes.
+- All backend endpoints that mutate data must re-check authorization
+  server-side, even if the frontend already hides the corresponding UI
+  control. Client-side route/button hiding is UX, not security — see
+  PROJECT_PLAN.md Phase 2 "Hunt for".
+- CORS on the NestJS backend must whitelist the specific frontend origin, not
+  `*`, since cookies (`credentials: true`) are in use.
+- Never log JWTs, passwords, or refresh tokens, even at debug level.
+- Passwords are hashed with `bcrypt` (or `argon2`) server-side — never
+  compared or stored in plaintext, never sent back in any API response.

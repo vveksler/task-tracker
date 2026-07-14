@@ -1,0 +1,45 @@
+---
+description: General project context and working agreement — always applied
+alwaysApply: true
+---
+
+# Project context
+
+This is a full-stack Kanban task tracker built as a portfolio/interview
+project, not a disposable prototype. It is deliberately built to production
+standards: typed end-to-end, tested, containerized, deployed to Kubernetes.
+
+Stack: NestJS + Prisma + PostgreSQL (backend), Next.js App Router + Zustand +
+dnd-kit (frontend), Socket.io (realtime), Docker + Kubernetes (deploy).
+
+See `PROJECT_PLAN.md` at the repo root for the full phased plan, including a
+"Hunt for" note per phase — a specific edge case to deliberately find and fix.
+When implementing a phase, read its "Hunt for" note and treat it as a
+requirement, not an afterthought.
+
+# How to work with me
+
+- I am a senior frontend-leaning full-stack engineer, strong in React/
+  TypeScript, competent but not deep in backend — deepening NestJS skills on
+  purpose. Explain backend-specific NestJS/Prisma idioms briefly when you
+  introduce them; don't explain basic JS/TS/React concepts.
+- Prefer explicit code over clever abstractions. I will be explaining every
+  part of this codebase in interviews — don't generate anything I can't
+  defend line by line.
+- When you make an architectural choice with real trade-offs (e.g. optimistic
+  locking vs fractional indexing, cookie vs header auth), state the
+  alternatives and why you picked one, in a short comment or in your reply —
+  not silently.
+- Never silently swallow errors. Every catch block either handles the error
+  meaningfully or rethrows with context.
+- Do not add a library or dependency without saying so explicitly and why it's
+  needed over what's already installed.
+
+# Code style
+
+- TypeScript strict mode everywhere. No `any` unless justified with a comment.
+- Prefer small, single-purpose functions/modules over large ones.
+- Environment variables are read only through a typed config module, never
+  `process.env.X` scattered through business logic.
+- No secrets, tokens, or credentials committed — use `.env` (gitignored) and
+  keep `.env.example` up to date whenever you add a new variable.
