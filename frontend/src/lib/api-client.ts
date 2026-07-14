@@ -25,12 +25,14 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Silent token refresh via the BFF /api/auth/refresh route.
+ * The Next.js Route Handler reads the httpOnly cookie on its own domain,
+ * exchanges it with the backend, and returns a fresh access token.
+ */
 async function tryRefresh(): Promise<boolean> {
   try {
-    const res = await fetch(`${API_URL}/auth/refresh`, {
-      method: 'POST',
-      credentials: 'include',
-    });
+    const res = await fetch('/api/auth/refresh', { method: 'POST' });
 
     if (!res.ok) return false;
 
@@ -45,7 +47,7 @@ async function tryRefresh(): Promise<boolean> {
 /**
  * Typed fetch wrapper that:
  * 1. Attaches the Bearer token
- * 2. On 401, attempts a silent token refresh and retries once
+ * 2. On 401, attempts a silent token refresh via BFF and retries once
  * 3. Throws ApiError with status for non-2xx responses
  */
 export async function apiFetch<T>(
@@ -66,22 +68,13 @@ export async function apiFetch<T>(
     headers.set('Content-Type', 'application/json');
   }
 
-  let res = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers,
-    credentials: 'include',
-  });
+  let res = await fetch(`${API_URL}${path}`, { ...init, headers });
 
-  // Silent refresh on 401
   if (res.status === 401 && accessToken) {
     const refreshed = await tryRefresh();
     if (refreshed) {
       headers.set('Authorization', `Bearer ${accessToken}`);
-      res = await fetch(`${API_URL}${path}`, {
-        ...init,
-        headers,
-        credentials: 'include',
-      });
+      res = await fetch(`${API_URL}${path}`, { ...init, headers });
     }
   }
 
@@ -93,22 +86,32 @@ export async function apiFetch<T>(
     );
   }
 
-  // 204 No Content
   if (res.status === 204) return undefined as T;
 
   return res.json() as Promise<T>;
 }
 
-// ── Auth helpers ──
+// ── Auth helpers — all go through the BFF (same-origin /api/auth/*) ──
 
 export async function apiLogin(
   email: string,
   password: string,
 ): Promise<AuthResponse> {
-  const data = await apiFetch<AuthResponse>('/auth/login', {
+  const res = await fetch('/api/auth/login', {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ message: res.statusText }));
+    throw new ApiError(
+      res.status,
+      (body as { message?: string }).message ?? res.statusText,
+    );
+  }
+
+  const data = (await res.json()) as AuthResponse;
   accessToken = data.accessToken;
   return data;
 }
@@ -118,17 +121,31 @@ export async function apiRegister(
   password: string,
   name: string,
 ): Promise<AuthResponse> {
-  const data = await apiFetch<AuthResponse>('/auth/register', {
+  const res = await fetch('/api/auth/register', {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password, name }),
   });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ message: res.statusText }));
+    throw new ApiError(
+      res.status,
+      (body as { message?: string }).message ?? res.statusText,
+    );
+  }
+
+  const data = (await res.json()) as AuthResponse;
   accessToken = data.accessToken;
   return data;
 }
 
 export async function apiLogout(): Promise<void> {
   try {
-    await apiFetch('/auth/logout', { method: 'POST' });
+    await fetch('/api/auth/logout', {
+      method: 'POST',
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    });
   } finally {
     accessToken = null;
   }
@@ -136,10 +153,7 @@ export async function apiLogout(): Promise<void> {
 
 export async function apiRefreshToken(): Promise<AuthResponse | null> {
   try {
-    const res = await fetch(`${API_URL}/auth/refresh`, {
-      method: 'POST',
-      credentials: 'include',
-    });
+    const res = await fetch('/api/auth/refresh', { method: 'POST' });
 
     if (!res.ok) return null;
 
