@@ -107,5 +107,6 @@ model Task {
 
   @@index([projectId, status])
   @@index([assigneeId])
+  @@index([projectId, createdAt])
   @@map("tasks")
 }

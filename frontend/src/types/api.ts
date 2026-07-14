@@ -76,3 +76,27 @@ export interface TaskDeletedEvent {
   taskId: string;
   projectId: string;
 }
+
+// ── Analytics ──
+
+export interface StatusBreakdown {
+  status: TaskStatus;
+  count: number;
+}
+
+export interface ActivityDay {
+  date: string;
+  created: number;
+  updated: number;
+}
+
+export interface AssigneeLoad {
+  assigneeId: string | null;
+  assigneeName: string | null;
+  assigneeEmail: string | null;
+  total: number;
+  todo: number;
+  inProgress: number;
+  inReview: number;
+  done: number;
+}

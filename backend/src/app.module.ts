@@ -8,6 +8,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
 import { ProjectsModule } from './projects/projects.module';
 import { TasksModule } from './tasks/tasks.module';
 import { GatewayModule } from './gateway/gateway.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { GatewayModule } from './gateway/gateway.module';
     ProjectsModule,
     TasksModule,
     GatewayModule,
+    AnalyticsModule,
   ],
 })
 export class AppModule {}
