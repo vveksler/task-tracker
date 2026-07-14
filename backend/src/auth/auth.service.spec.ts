@@ -10,15 +10,13 @@ import { PrismaService } from '../prisma/prisma.service';
 const mockUser = {
   id: 'user-uuid-1',
   email: 'test@example.com',
-  passwordHash: '', // set per test
+  passwordHash: '',
   name: 'Test User',
 };
 
 const mockConfig: Record<string, string> = {
   'jwt.accessSecret': 'test-access-secret',
   'jwt.accessExpiresIn': '15m',
-  'jwt.refreshSecret': 'test-refresh-secret',
-  'jwt.refreshExpiresIn': '7d',
 };
 
 function hashToken(token: string): string {
@@ -34,12 +32,11 @@ describe('AuthService', () => {
     };
     refreshToken: {
       create: jest.Mock;
-      findFirst: jest.Mock;
+      findUnique: jest.Mock;
       update: jest.Mock;
       updateMany: jest.Mock;
     };
   };
-  let jwtService: JwtService;
 
   beforeEach(async () => {
     prisma = {
@@ -49,7 +46,7 @@ describe('AuthService', () => {
       },
       refreshToken: {
         create: jest.fn(),
-        findFirst: jest.fn(),
+        findUnique: jest.fn(),
         update: jest.fn(),
         updateMany: jest.fn(),
       },
@@ -73,7 +70,6 @@ describe('AuthService', () => {
     }).compile();
 
     service = module.get(AuthService);
-    jwtService = module.get(JwtService);
   });
 
   describe('register', () => {
@@ -93,11 +89,33 @@ describe('AuthService', () => {
 
       expect(result.accessToken).toBeDefined();
       expect(result.refreshToken).toBeDefined();
+      // Refresh token is a random hex string, not a JWT
+      expect(result.refreshToken).toHaveLength(80); // 40 bytes = 80 hex chars
       expect(prisma.user.create).toHaveBeenCalledTimes(1);
 
       const createCall = prisma.user.create.mock.calls[0]![0]!;
       expect(createCall.data.email).toBe(mockUser.email);
       expect(createCall.data.passwordHash).not.toBe('password123');
+    });
+
+    it('should store the SHA-256 hash of refresh token, not the raw value', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.user.create.mockResolvedValue({
+        id: mockUser.id,
+        email: mockUser.email,
+      });
+      prisma.refreshToken.create.mockResolvedValue({ id: 'rt-1' });
+
+      const result = await service.register({
+        email: mockUser.email,
+        password: 'password123',
+        name: mockUser.name,
+      });
+
+      const storedHash =
+        prisma.refreshToken.create.mock.calls[0]![0]!.data.tokenHash;
+      expect(storedHash).toBe(hashToken(result.refreshToken));
+      expect(storedHash).not.toBe(result.refreshToken);
     });
 
     it('should throw ConflictException if email already exists', async () => {
@@ -128,7 +146,7 @@ describe('AuthService', () => {
       });
 
       expect(result.accessToken).toBeDefined();
-      expect(result.refreshToken).toBeDefined();
+      expect(result.refreshToken).toHaveLength(80);
     });
 
     it('should throw UnauthorizedException for wrong password', async () => {
@@ -153,26 +171,27 @@ describe('AuthService', () => {
   });
 
   describe('refresh', () => {
-    it('should return new token pair for valid refresh token', async () => {
-      const rawToken = jwtService.sign(
-        { sub: mockUser.id, email: mockUser.email },
-        { secret: mockConfig['jwt.refreshSecret'] },
-      );
+    const rawToken = 'a'.repeat(80); // simulates a 40-byte hex token
 
-      prisma.refreshToken.findFirst.mockResolvedValue({
+    it('should return new token pair for valid refresh token', async () => {
+      prisma.refreshToken.findUnique.mockResolvedValue({
         id: 'rt-1',
         tokenHash: hashToken(rawToken),
         userId: mockUser.id,
         revokedAt: null,
+        expiresAt: new Date(Date.now() + 86_400_000),
       });
       prisma.refreshToken.update.mockResolvedValue({});
       prisma.refreshToken.create.mockResolvedValue({ id: 'rt-2' });
+      prisma.user.findUnique.mockResolvedValue({
+        id: mockUser.id,
+        email: mockUser.email,
+      });
 
       const result = await service.refresh(rawToken);
 
       expect(result.accessToken).toBeDefined();
-      expect(result.refreshToken).toBeDefined();
-      // Old token should be revoked (rotation)
+      expect(result.refreshToken).toHaveLength(80);
       expect(prisma.refreshToken.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'rt-1' },
@@ -181,50 +200,54 @@ describe('AuthService', () => {
       );
     });
 
+    it('should reject an unknown refresh token', async () => {
+      prisma.refreshToken.findUnique.mockResolvedValue(null);
+
+      await expect(service.refresh(rawToken)).rejects.toThrow(
+        'Invalid refresh token',
+      );
+    });
+
     /**
      * HUNT FOR (Phase 1): Refresh token replay after logout.
      *
-     * Scenario: user logs out (token revoked in DB), then an attacker
-     * tries to reuse the same refresh token. The service must return 401,
-     * not a fresh token pair.
+     * Scenario: user logs out (revokedAt set in DB), then an attacker
+     * tries to reuse the same refresh token. The three-step check
+     * detects revokedAt is set and throws a specific "Token has been revoked"
+     * error — not a generic "invalid token".
      */
     it('should reject a revoked refresh token (replay after logout)', async () => {
-      const rawToken = jwtService.sign(
-        { sub: mockUser.id, email: mockUser.email },
-        { secret: mockConfig['jwt.refreshSecret'] },
-      );
-
-      // Simulate: token exists in DB but revokedAt is set (logged out).
-      // findFirst with revokedAt: null will return null.
-      prisma.refreshToken.findFirst.mockResolvedValue(null);
+      prisma.refreshToken.findUnique.mockResolvedValue({
+        id: 'rt-1',
+        tokenHash: hashToken(rawToken),
+        userId: mockUser.id,
+        revokedAt: new Date(), // <-- revoked
+        expiresAt: new Date(Date.now() + 86_400_000),
+      });
 
       await expect(service.refresh(rawToken)).rejects.toThrow(
-        UnauthorizedException,
+        'Token has been revoked',
       );
     });
 
     it('should reject an expired refresh token', async () => {
-      const rawToken = jwtService.sign(
-        { sub: mockUser.id, email: mockUser.email },
-        { secret: mockConfig['jwt.refreshSecret'], expiresIn: '0s' },
-      );
-
-      // Wait a tick for the token to expire
-      await new Promise((resolve) => setTimeout(resolve, 1100));
+      prisma.refreshToken.findUnique.mockResolvedValue({
+        id: 'rt-1',
+        tokenHash: hashToken(rawToken),
+        userId: mockUser.id,
+        revokedAt: null,
+        expiresAt: new Date(Date.now() - 1000), // <-- expired
+      });
 
       await expect(service.refresh(rawToken)).rejects.toThrow(
-        UnauthorizedException,
+        'Token expired',
       );
     });
   });
 
   describe('logout', () => {
     it('should revoke the refresh token in DB', async () => {
-      const rawToken = jwtService.sign(
-        { sub: mockUser.id, email: mockUser.email },
-        { secret: mockConfig['jwt.refreshSecret'] },
-      );
-
+      const rawToken = 'b'.repeat(80);
       prisma.refreshToken.updateMany.mockResolvedValue({ count: 1 });
 
       await service.logout(rawToken);
@@ -232,15 +255,15 @@ describe('AuthService', () => {
       expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
         where: {
           tokenHash: hashToken(rawToken),
-          userId: mockUser.id,
           revokedAt: null,
         },
         data: { revokedAt: expect.any(Date) },
       });
     });
 
-    it('should not throw for an invalid token', async () => {
-      await expect(service.logout('invalid-token')).resolves.toBeUndefined();
+    it('should not throw even if token not found in DB', async () => {
+      prisma.refreshToken.updateMany.mockResolvedValue({ count: 0 });
+      await expect(service.logout('unknown-token')).resolves.toBeUndefined();
     });
   });
 });
