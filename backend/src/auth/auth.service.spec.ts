@@ -73,11 +73,12 @@ describe('AuthService', () => {
   });
 
   describe('register', () => {
-    it('should create a user and return token pair', async () => {
+    it('should create a user and return token pair with user data', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
       prisma.user.create.mockResolvedValue({
         id: mockUser.id,
         email: mockUser.email,
+        name: mockUser.name,
       });
       prisma.refreshToken.create.mockResolvedValue({ id: 'rt-1' });
 
@@ -88,9 +89,12 @@ describe('AuthService', () => {
       });
 
       expect(result.accessToken).toBeDefined();
-      expect(result.refreshToken).toBeDefined();
-      // Refresh token is a random hex string, not a JWT
-      expect(result.refreshToken).toHaveLength(80); // 40 bytes = 80 hex chars
+      expect(result.refreshToken).toHaveLength(80);
+      expect(result.user).toEqual({
+        id: mockUser.id,
+        email: mockUser.email,
+        name: mockUser.name,
+      });
       expect(prisma.user.create).toHaveBeenCalledTimes(1);
 
       const createCall = prisma.user.create.mock.calls[0]![0]!;
@@ -103,6 +107,7 @@ describe('AuthService', () => {
       prisma.user.create.mockResolvedValue({
         id: mockUser.id,
         email: mockUser.email,
+        name: mockUser.name,
       });
       prisma.refreshToken.create.mockResolvedValue({ id: 'rt-1' });
 
@@ -132,7 +137,7 @@ describe('AuthService', () => {
   });
 
   describe('login', () => {
-    it('should return token pair for valid credentials', async () => {
+    it('should return token pair with user data for valid credentials', async () => {
       const hash = await bcrypt.hash('password123', 10);
       prisma.user.findUnique.mockResolvedValue({
         ...mockUser,
@@ -147,6 +152,11 @@ describe('AuthService', () => {
 
       expect(result.accessToken).toBeDefined();
       expect(result.refreshToken).toHaveLength(80);
+      expect(result.user).toEqual({
+        id: mockUser.id,
+        email: mockUser.email,
+        name: mockUser.name,
+      });
     });
 
     it('should throw UnauthorizedException for wrong password', async () => {
@@ -186,12 +196,18 @@ describe('AuthService', () => {
       prisma.user.findUnique.mockResolvedValue({
         id: mockUser.id,
         email: mockUser.email,
+        name: mockUser.name,
       });
 
       const result = await service.refresh(rawToken);
 
       expect(result.accessToken).toBeDefined();
       expect(result.refreshToken).toHaveLength(80);
+      expect(result.user).toEqual({
+        id: mockUser.id,
+        email: mockUser.email,
+        name: mockUser.name,
+      });
       expect(prisma.refreshToken.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'rt-1' },

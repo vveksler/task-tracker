@@ -15,9 +15,16 @@ const BCRYPT_ROUNDS = 12;
 const REFRESH_TOKEN_BYTES = 40;
 const REFRESH_TOKEN_DAYS = 7;
 
-export interface TokenPair {
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+}
+
+export interface AuthResult {
   accessToken: string;
   refreshToken: string;
+  user: AuthUser;
 }
 
 @Injectable()
@@ -28,7 +35,7 @@ export class AuthService {
     private readonly config: ConfigService,
   ) {}
 
-  async register(dto: RegisterDto): Promise<TokenPair> {
+  async register(dto: RegisterDto): Promise<AuthResult> {
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email },
       select: { id: true },
@@ -46,16 +53,17 @@ export class AuthService {
         passwordHash,
         name: dto.name,
       },
-      select: { id: true, email: true },
+      select: { id: true, email: true, name: true },
     });
 
-    return this.issueTokens(user.id, user.email);
+    const tokens = await this.issueTokens(user.id, user.email);
+    return { ...tokens, user };
   }
 
-  async login(dto: LoginDto): Promise<TokenPair> {
+  async login(dto: LoginDto): Promise<AuthResult> {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
-      select: { id: true, email: true, passwordHash: true },
+      select: { id: true, email: true, name: true, passwordHash: true },
     });
 
     if (!user) {
@@ -67,7 +75,11 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    return this.issueTokens(user.id, user.email);
+    const tokens = await this.issueTokens(user.id, user.email);
+    return {
+      ...tokens,
+      user: { id: user.id, email: user.email, name: user.name },
+    };
   }
 
   /**
@@ -77,7 +89,7 @@ export class AuthService {
    * Each condition has its own rejection reason. A revoked token (logged out)
    * is explicitly detected and rejected, blocking replay attacks.
    */
-  async refresh(rawRefreshToken: string): Promise<TokenPair> {
+  async refresh(rawRefreshToken: string): Promise<AuthResult> {
     const tokenHash = this.hashToken(rawRefreshToken);
 
     const stored = await this.prisma.refreshToken.findUnique({
@@ -101,17 +113,17 @@ export class AuthService {
       data: { revokedAt: new Date() },
     });
 
-    // Look up the user to get current email for the access token payload.
     const user = await this.prisma.user.findUnique({
       where: { id: stored.userId },
-      select: { id: true, email: true },
+      select: { id: true, email: true, name: true },
     });
 
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
 
-    return this.issueTokens(user.id, user.email);
+    const tokens = await this.issueTokens(user.id, user.email);
+    return { ...tokens, user };
   }
 
   async logout(rawRefreshToken: string): Promise<void> {
@@ -137,7 +149,7 @@ export class AuthService {
   private async issueTokens(
     userId: string,
     email: string,
-  ): Promise<TokenPair> {
+  ): Promise<Pick<AuthResult, 'accessToken' | 'refreshToken'>> {
     const accessToken = this.jwt.sign(
       { sub: userId, email },
       {
