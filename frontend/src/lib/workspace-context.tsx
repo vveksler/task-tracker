@@ -32,19 +32,25 @@ export const useWorkspace = (): WorkspaceContextValue => {
 
 interface WorkspaceProviderProps {
   workspaceId: string;
+  /** Pre-fetched workspace data from a Server Component — skips the initial client fetch */
+  initialData?: Workspace;
   children: ReactNode;
 }
 
 export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({
   workspaceId,
+  initialData,
   children,
 }) => {
   const { user } = useAuth();
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [workspace, setWorkspace] = useState<Workspace | null>(initialData ?? null);
+  const [isLoading, setIsLoading] = useState(!initialData);
   const [version, setVersion] = useState(0);
 
   useEffect(() => {
+    // Skip first fetch if we have initial data from the server
+    if (initialData && version === 0) return;
+
     let cancelled = false;
     setIsLoading(true);
     apiFetch<Workspace>(`/workspaces/${workspaceId}`)

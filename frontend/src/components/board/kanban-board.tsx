@@ -53,7 +53,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     tasks,
     isLoading,
     error,
-    loadTasks,
+    reset,
     syncTasks,
     addTask,
     updateTask,
@@ -80,6 +80,13 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
   const storeRef = useRef({ syncTasks, addTask, updateTask, removeTask });
   storeRef.current = { syncTasks, addTask, updateTask, removeTask };
+
+  // Clear stale data and show loading spinner immediately when projectId
+  // changes — prevents the old project's tasks from flashing before
+  // board:sync arrives with the new project's data.
+  useEffect(() => {
+    reset();
+  }, [projectId, reset]);
 
   // Socket.io connection — board:sync on join provides the initial task list,
   // so no separate REST fetch is needed.

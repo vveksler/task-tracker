@@ -37,7 +37,11 @@ export class AuthController {
   ) {
     const result = await this.authService.register(dto);
     this.setRefreshCookie(res, result.refreshToken);
-    return { accessToken: result.accessToken, user: result.user };
+    return {
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      user: result.user,
+    };
   }
 
   @Public()
@@ -50,25 +54,38 @@ export class AuthController {
   ) {
     const result = await this.authService.login(dto);
     this.setRefreshCookie(res, result.refreshToken);
-    return { accessToken: result.accessToken, user: result.user };
+    return {
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      user: result.user,
+    };
   }
 
   @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Refresh access token using httpOnly cookie' })
+  @ApiOperation({ summary: 'Refresh access token using httpOnly cookie or body token' })
   async refresh(
     @Req() req: Request,
+    @Body() body: { refreshToken?: string },
     @Res({ passthrough: true }) res: Response,
   ) {
-    const rawToken = req.cookies?.[REFRESH_COOKIE] as string | undefined;
+    // Accept refresh token from body (BFF) or cookie (direct browser)
+    const rawToken =
+      body?.refreshToken ??
+      (req.cookies?.[REFRESH_COOKIE] as string | undefined);
+
     if (!rawToken) {
       throw new UnauthorizedException('No refresh token provided');
     }
 
     const result = await this.authService.refresh(rawToken);
     this.setRefreshCookie(res, result.refreshToken);
-    return { accessToken: result.accessToken, user: result.user };
+    return {
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      user: result.user,
+    };
   }
 
   @Post('logout')
@@ -76,10 +93,14 @@ export class AuthController {
   @ApiOperation({ summary: 'Logout — revoke refresh token and clear cookie' })
   async logout(
     @Req() req: Request,
+    @Body() body: { refreshToken?: string },
     @Res({ passthrough: true }) res: Response,
     @CurrentUser() _user: JwtPayload,
   ) {
-    const rawToken = req.cookies?.[REFRESH_COOKIE] as string | undefined;
+    const rawToken =
+      body?.refreshToken ??
+      (req.cookies?.[REFRESH_COOKIE] as string | undefined);
+
     if (rawToken) {
       await this.authService.logout(rawToken);
     }
@@ -87,8 +108,8 @@ export class AuthController {
     res.clearCookie(REFRESH_COOKIE, {
       httpOnly: true,
       secure: this.isProduction(),
-      sameSite: 'strict',
-      path: '/auth',
+      sameSite: 'lax',
+      path: '/',
     });
 
     return { message: 'Logged out' };
@@ -97,12 +118,15 @@ export class AuthController {
   // ── private helpers ──
 
   private setRefreshCookie(res: Response, token: string): void {
+    // Backend still sets its own cookie for direct-API consumers (Swagger, tests).
+    // In production with BFF, the Next.js API Routes manage cookies on the
+    // frontend domain — these backend cookies are harmless but not used.
     res.cookie(REFRESH_COOKIE, token, {
       httpOnly: true,
       secure: this.isProduction(),
-      sameSite: 'strict',
-      path: '/auth',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
   }
 

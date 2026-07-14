@@ -19,6 +19,8 @@ interface BoardState {
   isLoading: boolean;
   error: string | null;
 
+  /** Clear tasks and show loading spinner — call when switching projects */
+  reset: () => void;
   loadTasks: (workspaceId: string, projectId: string) => Promise<void>;
   syncTasks: (tasks: Task[]) => void;
   addTask: (task: Task) => void;
@@ -52,8 +54,10 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   isLoading: false,
   error: null,
 
+  reset: () => set({ tasks: [], isLoading: true, error: null }),
+
   loadTasks: async (workspaceId, projectId) => {
-    set({ isLoading: true, error: null });
+    set({ tasks: [], isLoading: true, error: null });
     try {
       const tasks = await apiFetch<Task[]>(
         `/workspaces/${workspaceId}/tasks?projectId=${projectId}`,

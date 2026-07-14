@@ -92,48 +92,50 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
           </SortableContext>
         </div>
 
-        <div className="mt-2">
-          {showAdd ? (
-            <form onSubmit={handleAdd} className="space-y-2">
-              <input
-                type="text"
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="Task title..."
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                autoFocus
-                onBlur={() => {
-                  if (!newTitle.trim()) setShowAdd(false);
-                }}
-              />
-              <div className="flex gap-2">
-                <button
-                  type="submit"
-                  className="rounded-md bg-brand-600 px-3 py-1 text-xs font-medium text-white hover:bg-brand-700"
-                >
-                  Add
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAdd(false);
-                    setNewTitle('');
+        {status === 'TODO' && (
+          <div className="mt-2">
+            {showAdd ? (
+              <form onSubmit={handleAdd} className="space-y-2">
+                <input
+                  type="text"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  placeholder="Task title..."
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  autoFocus
+                  onBlur={() => {
+                    if (!newTitle.trim()) setShowAdd(false);
                   }}
-                  className="rounded-md px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          ) : (
-            <button
-              onClick={() => setShowAdd(true)}
-              className="w-full rounded-lg py-2 text-sm text-gray-500 hover:bg-gray-200"
-            >
-              + Add task
-            </button>
-          )}
-        </div>
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    className="rounded-md bg-brand-600 px-3 py-1 text-xs font-medium text-white hover:bg-brand-700"
+                  >
+                    Add
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAdd(false);
+                      setNewTitle('');
+                    }}
+                    className="rounded-md px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <button
+                onClick={() => setShowAdd(true)}
+                className="w-full rounded-lg py-2 text-sm text-gray-500 hover:bg-gray-200"
+              >
+                + Add task
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

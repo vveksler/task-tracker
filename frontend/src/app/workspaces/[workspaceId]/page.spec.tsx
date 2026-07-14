@@ -1,6 +1,9 @@
 /**
- * WorkspaceDetailPage tests — verifies edit/delete UI for workspaces
+ * WorkspaceDetailContent tests — verifies edit/delete UI for workspaces
  * and projects based on user role (ADMIN vs MEMBER).
+ *
+ * Tests target the Client Component (WorkspaceDetailContent) directly,
+ * since the page itself is a Server Component that just passes props.
  */
 
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
@@ -15,9 +18,9 @@ jest.mock('@/lib/api-client', () => ({
 }));
 
 const mockPush = jest.fn();
+const mockRefresh = jest.fn();
 jest.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: 'ws-1' }),
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, refresh: mockRefresh }),
 }));
 
 let mockWorkspaceCtx = {
@@ -32,7 +35,7 @@ jest.mock('@/lib/workspace-context', () => ({
   useWorkspace: () => mockWorkspaceCtx,
 }));
 
-import WorkspaceDetailPage from './page';
+import { WorkspaceDetailContent } from '@/components/workspaces/workspace-detail-content';
 
 const workspace: Workspace = {
   id: 'ws-1',
@@ -68,23 +71,22 @@ const projects: Project[] = [
   },
 ];
 
-/**
- * Helper: find the workspace heading row and its buttons, separate
- * from the project-level edit/delete buttons.
- */
 const getWorkspaceHeaderButtons = () => {
   const heading = screen.getByText('Test Workspace');
   const headerRow = heading.closest('.flex.items-center.gap-3') as HTMLElement;
   return headerRow ? within(headerRow) : null;
 };
 
-describe('WorkspaceDetailPage', () => {
+const renderContent = () =>
+  render(
+    <WorkspaceDetailContent workspaceId="ws-1" initialProjects={projects} />,
+  );
+
+describe('WorkspaceDetailContent', () => {
   beforeEach(() => {
     mockApiFetch.mockReset();
     mockPush.mockReset();
     mockWorkspaceCtx.refetch.mockReset();
-
-    mockApiFetch.mockResolvedValue(projects);
   });
 
   // ── ADMIN + OWNER scenarios ──
@@ -101,12 +103,8 @@ describe('WorkspaceDetailPage', () => {
       };
     });
 
-    it('should show Edit and Delete buttons for workspace header', async () => {
-      render(<WorkspaceDetailPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Test Workspace')).toBeTruthy();
-      });
+    it('should show Edit and Delete buttons for workspace header', () => {
+      renderContent();
 
       const header = getWorkspaceHeaderButtons()!;
       expect(header.getByText('Edit')).toBeTruthy();
@@ -115,22 +113,14 @@ describe('WorkspaceDetailPage', () => {
 
     it('should allow inline editing of workspace name', async () => {
       const user = userEvent.setup();
-      mockApiFetch
-        .mockResolvedValueOnce(projects)
-        .mockResolvedValueOnce({ ...workspace, name: 'Renamed WS' });
+      mockApiFetch.mockResolvedValueOnce({ ...workspace, name: 'Renamed WS' });
 
-      render(<WorkspaceDetailPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Test Workspace')).toBeTruthy();
-      });
+      renderContent();
 
       const header = getWorkspaceHeaderButtons()!;
       await user.click(header.getByText('Edit'));
 
       const nameInput = screen.getByDisplayValue('Test Workspace');
-      expect(nameInput).toBeTruthy();
-
       await user.clear(nameInput);
       await user.type(nameInput, 'Renamed WS');
       fireEvent.submit(nameInput.closest('form')!);
@@ -148,15 +138,9 @@ describe('WorkspaceDetailPage', () => {
 
     it('should delete workspace and redirect to /workspaces', async () => {
       window.confirm = jest.fn().mockReturnValue(true);
-      mockApiFetch
-        .mockResolvedValueOnce(projects)
-        .mockResolvedValueOnce(undefined);
+      mockApiFetch.mockResolvedValueOnce(undefined);
 
-      render(<WorkspaceDetailPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Test Workspace')).toBeTruthy();
-      });
+      renderContent();
 
       const header = getWorkspaceHeaderButtons()!;
       fireEvent.click(header.getByText('Delete'));
@@ -171,49 +155,32 @@ describe('WorkspaceDetailPage', () => {
       expect(mockPush).toHaveBeenCalledWith('/workspaces');
     });
 
-    it('should NOT delete workspace when confirm is cancelled', async () => {
+    it('should NOT delete workspace when confirm is cancelled', () => {
       window.confirm = jest.fn().mockReturnValue(false);
 
-      render(<WorkspaceDetailPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Test Workspace')).toBeTruthy();
-      });
+      renderContent();
 
       const header = getWorkspaceHeaderButtons()!;
       fireEvent.click(header.getByText('Delete'));
 
-      // Only the projects fetch call — no DELETE
-      expect(mockApiFetch).toHaveBeenCalledTimes(1);
+      expect(mockApiFetch).not.toHaveBeenCalled();
     });
 
-    it('should show edit/delete controls on project cards', async () => {
-      render(<WorkspaceDetailPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Project Alpha')).toBeTruthy();
-      });
+    it('should show edit/delete controls on project cards', () => {
+      renderContent();
 
       const allEdits = screen.getAllByText('Edit');
-      // workspace Edit + 2 project Edit = 3
       expect(allEdits.length).toBe(3);
     });
 
     it('should delete a project and remove it from list', async () => {
       window.confirm = jest.fn().mockReturnValue(true);
-      mockApiFetch
-        .mockResolvedValueOnce(projects)
-        .mockResolvedValueOnce(undefined);
+      mockApiFetch.mockResolvedValueOnce(undefined);
 
-      render(<WorkspaceDetailPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Project Alpha')).toBeTruthy();
-      });
+      renderContent();
 
       const alphaCard = screen.getByText('Project Alpha').closest('.group') as HTMLElement;
       const deleteBtn = within(alphaCard).getByText('Delete');
-
       fireEvent.click(deleteBtn);
 
       await waitFor(() => {
@@ -244,24 +211,16 @@ describe('WorkspaceDetailPage', () => {
       };
     });
 
-    it('should show Edit but NOT Delete for workspace header', async () => {
-      render(<WorkspaceDetailPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Test Workspace')).toBeTruthy();
-      });
+    it('should show Edit but NOT Delete for workspace header', () => {
+      renderContent();
 
       const header = getWorkspaceHeaderButtons()!;
       expect(header.getByText('Edit')).toBeTruthy();
       expect(header.queryByText('Delete')).toBeNull();
     });
 
-    it('should still show project edit/delete for admin', async () => {
-      render(<WorkspaceDetailPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Project Alpha')).toBeTruthy();
-      });
+    it('should still show project edit/delete for admin', () => {
+      renderContent();
 
       const alphaCard = screen.getByText('Project Alpha').closest('.group') as HTMLElement;
       expect(within(alphaCard).getByText('Edit')).toBeTruthy();
@@ -283,12 +242,8 @@ describe('WorkspaceDetailPage', () => {
       };
     });
 
-    it('should NOT show Edit or Delete for workspace header', async () => {
-      render(<WorkspaceDetailPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Test Workspace')).toBeTruthy();
-      });
+    it('should NOT show Edit or Delete for workspace header', () => {
+      renderContent();
 
       const heading = screen.getByText('Test Workspace');
       const headerRow = heading.closest('.flex.items-center.gap-3') as HTMLElement;
@@ -296,52 +251,25 @@ describe('WorkspaceDetailPage', () => {
       expect(buttons?.length ?? 0).toBe(0);
     });
 
-    it('should NOT show edit/delete on project cards', async () => {
-      render(<WorkspaceDetailPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Project Alpha')).toBeTruthy();
-      });
+    it('should NOT show edit/delete on project cards', () => {
+      renderContent();
 
       const alphaCard = screen.getByText('Project Alpha').closest('.group') as HTMLElement;
       const hiddenBtns = alphaCard?.querySelectorAll('button');
       expect(hiddenBtns?.length ?? 0).toBe(0);
     });
 
-    it('should still show projects list and allow navigation', async () => {
-      render(<WorkspaceDetailPage />);
+    it('should still show projects list', () => {
+      renderContent();
 
-      await waitFor(() => {
-        expect(screen.getByText('Project Alpha')).toBeTruthy();
-        expect(screen.getByText('Project Beta')).toBeTruthy();
-      });
+      expect(screen.getByText('Project Alpha')).toBeTruthy();
+      expect(screen.getByText('Project Beta')).toBeTruthy();
     });
 
-    it('should still show New project button', async () => {
-      render(<WorkspaceDetailPage />);
+    it('should still show New project button', () => {
+      renderContent();
 
-      await waitFor(() => {
-        expect(screen.getByText('New project')).toBeTruthy();
-      });
+      expect(screen.getByText('New project')).toBeTruthy();
     });
-  });
-
-  // ── Loading state ──
-
-  it('should show spinner while loading', () => {
-    mockWorkspaceCtx = {
-      workspace: null,
-      myRole: null,
-      isOwner: false,
-      isAdmin: false,
-      isLoading: true,
-      refetch: jest.fn(),
-    };
-    mockApiFetch.mockReturnValue(new Promise(() => {}));
-
-    render(<WorkspaceDetailPage />);
-
-    expect(screen.queryByText('Test Workspace')).toBeNull();
-    expect(document.querySelector('.animate-spin')).toBeTruthy();
   });
 });
