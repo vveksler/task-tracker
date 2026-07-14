@@ -1,10 +1,14 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { TaskGateway } from '../gateway/task.gateway';
+import type { TaskPayload } from '../gateway/gateway.events';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { ReorderTaskDto } from './dto/reorder-task.dto';
@@ -19,11 +23,15 @@ const TASK_SELECT = {
   assigneeId: true,
   createdAt: true,
   updatedAt: true,
+  project: { select: { workspaceId: true } },
 } satisfies Prisma.TaskSelect;
 
 @Injectable()
 export class TasksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() @Inject(TaskGateway) private readonly gateway?: TaskGateway,
+  ) {}
 
   async create(dto: CreateTaskDto) {
     const project = await this.prisma.project.findUnique({
@@ -44,7 +52,7 @@ export class TasksService {
 
     const order = (lastTask?.order ?? 0) + 1;
 
-    return this.prisma.task.create({
+    const created = await this.prisma.task.create({
       data: {
         title: dto.title,
         description: dto.description,
@@ -55,6 +63,9 @@ export class TasksService {
       },
       select: TASK_SELECT,
     });
+
+    this.emit('created', created);
+    return created;
   }
 
   async findAllByProject(projectId: string) {
@@ -88,7 +99,7 @@ export class TasksService {
       throw new NotFoundException('Task not found');
     }
 
-    return this.prisma.task.update({
+    const updated = await this.prisma.task.update({
       where: { id: taskId },
       data: {
         title: dto.title,
@@ -98,12 +109,19 @@ export class TasksService {
       },
       select: TASK_SELECT,
     });
+
+    this.emit('updated', updated);
+    return updated;
   }
 
   async remove(taskId: string) {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
-      select: { id: true },
+      select: {
+        id: true,
+        projectId: true,
+        project: { select: { workspaceId: true } },
+      },
     });
 
     if (!task) {
@@ -111,6 +129,12 @@ export class TasksService {
     }
 
     await this.prisma.task.delete({ where: { id: taskId } });
+
+    this.gateway?.emitTaskDeleted(
+      task.project.workspaceId,
+      task.id,
+      task.projectId,
+    );
   }
 
   /**
@@ -160,7 +184,7 @@ export class TasksService {
   }
 
   private async reorderInTransaction(taskId: string, dto: ReorderTaskDto) {
-    return this.prisma.$transaction(
+    const moved = await this.prisma.$transaction(
       async (tx) => {
         const task = await tx.task.findUnique({
           where: { id: taskId },
@@ -190,6 +214,9 @@ export class TasksService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+
+    this.emit('moved', moved);
+    return moved;
   }
 
   /**
@@ -242,5 +269,42 @@ export class TasksService {
     });
 
     return (last?.order ?? 0) + 1;
+  }
+
+  // ── Realtime helpers ──
+
+  private emit(
+    kind: 'created' | 'updated' | 'moved',
+    task: { project: { workspaceId: string } } & Record<string, unknown>,
+  ): void {
+    if (!this.gateway) return;
+    const payload = this.toPayload(task);
+    const workspaceId = task.project.workspaceId;
+
+    switch (kind) {
+      case 'created':
+        this.gateway.emitTaskCreated(workspaceId, payload);
+        break;
+      case 'updated':
+        this.gateway.emitTaskUpdated(workspaceId, payload);
+        break;
+      case 'moved':
+        this.gateway.emitTaskMoved(workspaceId, payload);
+        break;
+    }
+  }
+
+  private toPayload(task: Record<string, unknown>): TaskPayload {
+    return {
+      id: task['id'] as string,
+      title: task['title'] as string,
+      description: task['description'] as string | null,
+      status: task['status'] as string,
+      order: task['order'] as number,
+      projectId: task['projectId'] as string,
+      assigneeId: task['assigneeId'] as string | null,
+      createdAt: (task['createdAt'] as Date).toISOString(),
+      updatedAt: (task['updatedAt'] as Date).toISOString(),
+    };
   }
 }
