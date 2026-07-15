@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Task, TaskStatus } from '@/types/api';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { Task, TaskStatus, WorkspaceMember } from '@/types/api';
 import { apiFetch } from '@/lib/api-client';
 import { useBoardStore } from '@/stores/board-store';
 import { useWorkspace } from '@/lib/workspace-context';
@@ -14,6 +14,15 @@ const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
   { value: 'DONE', label: 'Done' },
 ];
 
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+}
+
 interface TaskModalProps {
   task: Task;
   workspaceId: string;
@@ -25,20 +34,29 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   workspaceId,
   onClose,
 }) => {
-  const { isAdmin } = useWorkspace();
+  const { isAdmin, workspace } = useWorkspace();
   const updateTask = useBoardStore((s) => s.updateTask);
   const removeTask = useBoardStore((s) => s.removeTask);
 
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? '');
   const [status, setStatus] = useState<TaskStatus>(task.status);
+  const [assigneeId, setAssigneeId] = useState<string | null>(
+    task.assigneeId,
+  );
   const [isSaving, setIsSaving] = useState(false);
   const backdropRef = useRef<HTMLDivElement>(null);
+
+  const members: WorkspaceMember[] = useMemo(
+    () => workspace?.members ?? [],
+    [workspace],
+  );
 
   const hasChanges =
     title !== task.title ||
     description !== (task.description ?? '') ||
-    status !== task.status;
+    status !== task.status ||
+    assigneeId !== task.assigneeId;
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -67,6 +85,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             title: title.trim(),
             description: description.trim() || null,
             status,
+            assigneeId: assigneeId || null,
           }),
         },
       );
@@ -75,7 +94,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     } finally {
       setIsSaving(false);
     }
-  }, [workspaceId, task.id, title, description, status, updateTask, onClose]);
+  }, [workspaceId, task.id, title, description, status, assigneeId, updateTask, onClose]);
 
   const handleDelete = useCallback(async () => {
     if (!confirm('Delete this task?')) return;
@@ -85,6 +104,9 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     removeTask(task.id);
     onClose();
   }, [workspaceId, task.id, removeTask, onClose]);
+
+  const inputClass =
+    'mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500';
 
   return (
     <div
@@ -111,8 +133,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              disabled={!isAdmin}
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:bg-gray-50 disabled:text-gray-500"
+              className={inputClass}
             />
           </div>
 
@@ -123,9 +144,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              disabled={!isAdmin}
               rows={3}
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:bg-gray-50 disabled:text-gray-500"
+              className={inputClass}
               placeholder="Add a description..."
             />
           </div>
@@ -137,12 +157,29 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as TaskStatus)}
-              disabled={!isAdmin}
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:bg-gray-50"
+              className={inputClass}
             >
               {STATUS_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Assignee
+            </label>
+            <select
+              value={assigneeId ?? ''}
+              onChange={(e) => setAssigneeId(e.target.value || null)}
+              className={inputClass}
+            >
+              <option value="">Unassigned</option>
+              {members.map((m) => (
+                <option key={m.userId} value={m.userId}>
+                  {m.user.name} ({m.user.email})
                 </option>
               ))}
             </select>
@@ -166,16 +203,14 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             <Button variant="secondary" size="sm" onClick={onClose}>
               Cancel
             </Button>
-            {isAdmin && (
-              <Button
-                size="sm"
-                onClick={handleSave}
-                isLoading={isSaving}
-                disabled={!hasChanges || !title.trim()}
-              >
-                Save
-              </Button>
-            )}
+            <Button
+              size="sm"
+              onClick={handleSave}
+              isLoading={isSaving}
+              disabled={!hasChanges || !title.trim()}
+            >
+              Save
+            </Button>
           </div>
         </div>
       </div>

@@ -35,6 +35,13 @@ jest.mock('@/lib/workspace-context', () => ({
   useWorkspace: () => mockWorkspaceCtx,
 }));
 
+jest.mock('@/lib/auth-context', () => ({
+  useAuth: () => ({
+    user: { id: 'user-admin', email: 'admin@test.com', name: 'Admin' },
+    isAuthenticated: true,
+  }),
+}));
+
 import { WorkspaceDetailContent } from '@/components/workspaces/workspace-detail-content';
 
 const workspace: Workspace = {

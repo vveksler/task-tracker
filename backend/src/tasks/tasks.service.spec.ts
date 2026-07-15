@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma, TaskStatus } from '@prisma/client';
 import { TasksService } from './tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -27,6 +31,7 @@ describe('TasksService', () => {
       update: jest.Mock;
       delete: jest.Mock;
     };
+    workspaceMember: { findUnique: jest.Mock };
     $transaction: jest.Mock;
   };
 
@@ -42,6 +47,9 @@ describe('TasksService', () => {
         findFirst: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
+      },
+      workspaceMember: {
+        findUnique: jest.fn(),
       },
       $transaction: jest.fn(),
     };
@@ -66,7 +74,10 @@ describe('TasksService', () => {
 
   describe('create', () => {
     it('should create task at the bottom of column and emit event', async () => {
-      prisma.project.findUnique.mockResolvedValue({ id: projectId });
+      prisma.project.findUnique.mockResolvedValue({
+        id: projectId,
+        workspaceId,
+      });
       prisma.task.findFirst.mockResolvedValue({ order: 3 });
       prisma.task.create.mockResolvedValue(
         withProject({
@@ -82,7 +93,7 @@ describe('TasksService', () => {
         }),
       );
 
-      const result = await service.create({
+      const result = await service.create(workspaceId, {
         title: 'Test',
         projectId,
       });
@@ -100,8 +111,35 @@ describe('TasksService', () => {
       prisma.project.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.create({ title: 'Test', projectId: 'bad-id' }),
+        service.create(workspaceId, { title: 'Test', projectId: 'bad-id' }),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw if project belongs to another workspace (IDOR)', async () => {
+      prisma.project.findUnique.mockResolvedValue({
+        id: projectId,
+        workspaceId: 'other-workspace',
+      });
+
+      await expect(
+        service.create(workspaceId, { title: 'Test', projectId }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw if assignee is not a workspace member', async () => {
+      prisma.project.findUnique.mockResolvedValue({
+        id: projectId,
+        workspaceId,
+      });
+      prisma.workspaceMember.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.create(workspaceId, {
+          title: 'Test',
+          projectId,
+          assigneeId: 'non-member-id',
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

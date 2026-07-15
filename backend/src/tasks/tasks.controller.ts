@@ -28,29 +28,39 @@ export class TasksController {
 
   @Post()
   @ApiOperation({ summary: 'Create a task in a project' })
-  create(@Body() dto: CreateTaskDto) {
-    return this.tasksService.create(dto);
+  create(
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
+    @Body() dto: CreateTaskDto,
+  ) {
+    return this.tasksService.create(workspaceId, dto);
   }
 
   @Get()
   @ApiOperation({ summary: 'List tasks in a project' })
-  findAll(@Query('projectId', ParseUUIDPipe) projectId: string) {
-    return this.tasksService.findAllByProject(projectId);
+  findAll(
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
+    @Query('projectId', ParseUUIDPipe) projectId: string,
+  ) {
+    return this.tasksService.findAllByProject(workspaceId, projectId);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get task details' })
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.tasksService.findOne(id);
+  findOne(
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.tasksService.findOne(workspaceId, id);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update task fields (title, description, status, assignee)' })
   update(
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateTaskDto,
   ) {
-    return this.tasksService.update(id, dto);
+    return this.tasksService.update(workspaceId, id, dto);
   }
 
   @Patch(':id/reorder')
@@ -67,7 +77,10 @@ export class TasksController {
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a task' })
-  remove(@Param('id', ParseUUIDPipe) id: string) {
-    return this.tasksService.remove(id);
+  remove(
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.tasksService.remove(workspaceId, id);
   }
 }

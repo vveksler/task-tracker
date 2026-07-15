@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
@@ -8,7 +12,6 @@ export class ProjectsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(workspaceId: string, dto: CreateProjectDto) {
-    // Verify workspace exists
     const workspace = await this.prisma.workspace.findUnique({
       where: { id: workspaceId },
       select: { id: true },
@@ -41,7 +44,8 @@ export class ProjectsService {
     });
   }
 
-  async findOne(projectId: string) {
+  /** Fetches one project and verifies it belongs to the given workspace. */
+  async findOne(workspaceId: string, projectId: string) {
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
       select: {
@@ -57,17 +61,29 @@ export class ProjectsService {
       throw new NotFoundException('Project not found');
     }
 
+    if (project.workspaceId !== workspaceId) {
+      throw new ForbiddenException(
+        'Project does not belong to this workspace',
+      );
+    }
+
     return project;
   }
 
-  async update(projectId: string, dto: UpdateProjectDto) {
+  async update(workspaceId: string, projectId: string, dto: UpdateProjectDto) {
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
-      select: { id: true },
+      select: { id: true, workspaceId: true },
     });
 
     if (!project) {
       throw new NotFoundException('Project not found');
+    }
+
+    if (project.workspaceId !== workspaceId) {
+      throw new ForbiddenException(
+        'Project does not belong to this workspace',
+      );
     }
 
     return this.prisma.project.update({
@@ -77,14 +93,20 @@ export class ProjectsService {
     });
   }
 
-  async remove(projectId: string) {
+  async remove(workspaceId: string, projectId: string) {
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
-      select: { id: true },
+      select: { id: true, workspaceId: true },
     });
 
     if (!project) {
       throw new NotFoundException('Project not found');
+    }
+
+    if (project.workspaceId !== workspaceId) {
+      throw new ForbiddenException(
+        'Project does not belong to this workspace',
+      );
     }
 
     await this.prisma.project.delete({ where: { id: projectId } });
