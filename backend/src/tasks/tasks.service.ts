@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -33,17 +34,26 @@ export class TasksService {
     @Optional() @Inject(TaskGateway) private readonly gateway?: TaskGateway,
   ) {}
 
-  async create(dto: CreateTaskDto) {
+  async create(workspaceId: string, dto: CreateTaskDto) {
     const project = await this.prisma.project.findUnique({
       where: { id: dto.projectId },
-      select: { id: true },
+      select: { id: true, workspaceId: true },
     });
 
     if (!project) {
       throw new NotFoundException('Project not found');
     }
 
-    // Place new task at the bottom of its column: max(order) + 1
+    if (project.workspaceId !== workspaceId) {
+      throw new ForbiddenException(
+        'Project does not belong to this workspace',
+      );
+    }
+
+    if (dto.assigneeId) {
+      await this.validateAssignee(workspaceId, dto.assigneeId);
+    }
+
     const lastTask = await this.prisma.task.findFirst({
       where: { projectId: dto.projectId, status: dto.status ?? 'TODO' },
       orderBy: { order: 'desc' },
@@ -68,7 +78,22 @@ export class TasksService {
     return created;
   }
 
-  async findAllByProject(projectId: string) {
+  async findAllByProject(workspaceId: string, projectId: string) {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { workspaceId: true },
+    });
+
+    if (!project) {
+      throw new NotFoundException('Project not found');
+    }
+
+    if (project.workspaceId !== workspaceId) {
+      throw new ForbiddenException(
+        'Project does not belong to this workspace',
+      );
+    }
+
     return this.prisma.task.findMany({
       where: { projectId },
       select: TASK_SELECT,
@@ -76,7 +101,7 @@ export class TasksService {
     });
   }
 
-  async findOne(taskId: string) {
+  async findOne(workspaceId: string, taskId: string) {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
       select: TASK_SELECT,
@@ -86,17 +111,33 @@ export class TasksService {
       throw new NotFoundException('Task not found');
     }
 
+    if (task.project.workspaceId !== workspaceId) {
+      throw new ForbiddenException(
+        'Task does not belong to this workspace',
+      );
+    }
+
     return task;
   }
 
-  async update(taskId: string, dto: UpdateTaskDto) {
+  async update(workspaceId: string, taskId: string, dto: UpdateTaskDto) {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
-      select: { id: true },
+      select: { id: true, project: { select: { workspaceId: true } } },
     });
 
     if (!task) {
       throw new NotFoundException('Task not found');
+    }
+
+    if (task.project.workspaceId !== workspaceId) {
+      throw new ForbiddenException(
+        'Task does not belong to this workspace',
+      );
+    }
+
+    if (dto.assigneeId) {
+      await this.validateAssignee(workspaceId, dto.assigneeId);
     }
 
     const updated = await this.prisma.task.update({
@@ -114,7 +155,7 @@ export class TasksService {
     return updated;
   }
 
-  async remove(taskId: string) {
+  async remove(workspaceId: string, taskId: string) {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
       select: {
@@ -128,6 +169,12 @@ export class TasksService {
       throw new NotFoundException('Task not found');
     }
 
+    if (task.project.workspaceId !== workspaceId) {
+      throw new ForbiddenException(
+        'Task does not belong to this workspace',
+      );
+    }
+
     await this.prisma.task.delete({ where: { id: taskId } });
 
     this.gateway?.emitTaskDeleted(
@@ -135,6 +182,25 @@ export class TasksService {
       task.id,
       task.projectId,
     );
+  }
+
+  /** Validates that the assignee is a member of the workspace. */
+  private async validateAssignee(
+    workspaceId: string,
+    assigneeId: string,
+  ): Promise<void> {
+    const member = await this.prisma.workspaceMember.findUnique({
+      where: {
+        userId_workspaceId: { userId: assigneeId, workspaceId },
+      },
+      select: { userId: true },
+    });
+
+    if (!member) {
+      throw new BadRequestException(
+        'Assignee must be a member of this workspace',
+      );
+    }
   }
 
   /**

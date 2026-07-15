@@ -21,8 +21,18 @@ jest.mock('@/stores/board-store', () => ({
 }));
 
 let mockIsAdmin = true;
+const mockWorkspace = {
+  id: 'ws-1',
+  name: 'Test WS',
+  ownerId: 'owner-1',
+  createdAt: '2026-01-01',
+  members: [
+    { userId: 'user-1', role: 'ADMIN' as const, joinedAt: '2026-01-01', user: { id: 'user-1', email: 'admin@test.com', name: 'Admin User' } },
+    { userId: 'user-2', role: 'MEMBER' as const, joinedAt: '2026-01-01', user: { id: 'user-2', email: 'member@test.com', name: 'Member User' } },
+  ],
+};
 jest.mock('@/lib/workspace-context', () => ({
-  useWorkspace: () => ({ isAdmin: mockIsAdmin }),
+  useWorkspace: () => ({ isAdmin: mockIsAdmin, workspace: mockWorkspace }),
 }));
 
 import { TaskModal } from './task-modal';
@@ -173,27 +183,29 @@ describe('TaskModal', () => {
   });
 
   // ── Regular member (non-admin) scenarios ──
+  // Members can edit task fields (title, description, status, assignee)
+  // but cannot delete tasks — only admins can delete.
 
   describe('MEMBER user (non-admin)', () => {
     beforeEach(() => { mockIsAdmin = false; });
 
-    it('should render disabled fields for member', () => {
+    it('should render editable fields for member', () => {
       render(<TaskModal task={task} workspaceId="ws-1" onClose={onClose} />);
 
       const titleInput = screen.getByDisplayValue('Test Task') as HTMLInputElement;
-      expect(titleInput.disabled).toBe(true);
+      expect(titleInput.disabled).toBe(false);
 
       const descInput = screen.getByDisplayValue('A test description') as HTMLTextAreaElement;
-      expect(descInput.disabled).toBe(true);
+      expect(descInput.disabled).toBe(false);
 
       const statusSelect = screen.getByDisplayValue('To Do') as HTMLSelectElement;
-      expect(statusSelect.disabled).toBe(true);
+      expect(statusSelect.disabled).toBe(false);
     });
 
-    it('should NOT show Save or Delete buttons for member', () => {
+    it('should show Save button but NOT Delete for member', () => {
       render(<TaskModal task={task} workspaceId="ws-1" onClose={onClose} />);
 
-      expect(screen.queryByText('Save')).toBeNull();
+      expect(screen.getByText('Save')).toBeTruthy();
       expect(screen.queryByText('Delete task')).toBeNull();
     });
 
@@ -203,12 +215,19 @@ describe('TaskModal', () => {
       expect(screen.getByText('Cancel')).toBeTruthy();
     });
 
-    it('should still display task data in read-only mode', () => {
+    it('should still display task data', () => {
       render(<TaskModal task={task} workspaceId="ws-1" onClose={onClose} />);
 
       expect(screen.getByDisplayValue('Test Task')).toBeTruthy();
       expect(screen.getByDisplayValue('A test description')).toBeTruthy();
       expect(screen.getByText('Task details')).toBeTruthy();
+    });
+
+    it('should show assignee picker with workspace members', () => {
+      render(<TaskModal task={task} workspaceId="ws-1" onClose={onClose} />);
+
+      expect(screen.getByText('Assignee')).toBeTruthy();
+      expect(screen.getByText('Unassigned')).toBeTruthy();
     });
   });
 

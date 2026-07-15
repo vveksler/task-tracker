@@ -43,24 +43,31 @@ export class ProjectsController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get project details' })
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.projectsService.findOne(id);
+  findOne(
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.projectsService.findOne(workspaceId, id);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update project name (any member)' })
   update(
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateProjectDto,
   ) {
-    return this.projectsService.update(id, dto);
+    return this.projectsService.update(workspaceId, id, dto);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @Roles(WorkspaceRole.ADMIN)
   @ApiOperation({ summary: 'Delete project (ADMIN only)' })
-  remove(@Param('id', ParseUUIDPipe) id: string) {
-    return this.projectsService.remove(id);
+  remove(
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.projectsService.remove(workspaceId, id);
   }
 }

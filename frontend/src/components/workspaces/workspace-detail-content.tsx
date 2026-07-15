@@ -7,6 +7,7 @@ import { apiFetch } from '@/lib/api-client';
 import { useWorkspace } from '@/lib/workspace-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { MembersPanel } from '@/components/workspaces/members-panel';
 import type { Project } from '@/types/api';
 
 interface WorkspaceDetailContentProps {
@@ -163,6 +164,8 @@ export const WorkspaceDetailContent: React.FC<WorkspaceDetailContentProps> = ({
           📊 Analytics
         </Link>
       </div>
+
+      <MembersPanel workspaceId={workspaceId} />
 
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-gray-800">Projects</h2>
