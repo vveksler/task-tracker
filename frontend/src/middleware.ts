@@ -72,9 +72,14 @@ export async function middleware(request: NextRequest) {
     // If backend rotated the token, persist the new refresh token.
     // Grace period responses return empty refreshToken — don't overwrite.
     if (data.refreshToken) {
+      const cookieSecure =
+        process.env['COOKIE_SECURE'] !== undefined
+          ? process.env['COOKIE_SECURE'] === 'true'
+          : process.env.NODE_ENV === 'production';
+
       response.cookies.set(REFRESH_COOKIE, data.refreshToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: cookieSecure,
         sameSite: 'lax',
         path: '/',
         maxAge: 7 * 24 * 60 * 60,

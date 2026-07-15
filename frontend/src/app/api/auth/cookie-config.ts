@@ -21,11 +21,16 @@ export interface BackendAuthResponse {
 }
 
 export function refreshCookieOptions() {
-  const isProduction = process.env.NODE_ENV === 'production';
+  // COOKIE_SECURE lets us run NODE_ENV=production without TLS (e.g. minikube).
+  // Defaults to true in production, false otherwise.
+  const secure =
+    process.env['COOKIE_SECURE'] !== undefined
+      ? process.env['COOKIE_SECURE'] === 'true'
+      : process.env.NODE_ENV === 'production';
 
   return {
     httpOnly: true,
-    secure: isProduction,
+    secure,
     sameSite: 'lax' as const,
     path: '/',
     maxAge: REFRESH_COOKIE_MAX_AGE,

@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "task-tracker.labels" . | nindent 4 }}
+    {{- include "task-tracker.selectorLabels" (dict "component" "backend") | nindent 4 }}
+spec:
+  replicas: {{ .Values.backend.replicas }}
+  selector:
+    matchLabels:
+      {{- include "task-tracker.selectorLabels" (dict "component" "backend") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "task-tracker.selectorLabels" (dict "component" "backend") | nindent 8 }}
+    spec:
+      # Hunt for (Phase 8): without this init container the backend would
+      # crash-loop trying to connect to Postgres before it's ready.
+      # This is one of the most common real-world K8s startup problems.
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for postgres:5432..."
+              until nc -z postgres 5432; do
+                sleep 2
+              done
+              echo "Postgres is ready"
+      containers:
+        - name: backend
+          image: {{ .Values.backend.image }}
+          imagePullPolicy: {{ .Values.backend.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.backend.port }}
+          envFrom:
+            - configMapRef:
+                name: task-tracker-config
+            - secretRef:
+                name: task-tracker-secret
+          env:
+            - name: PORT
+              value: {{ .Values.backend.port | quote }}
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: {{ .Values.backend.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: {{ .Values.backend.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            failureThreshold: 3

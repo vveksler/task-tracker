@@ -1,0 +1,78 @@
+{{- if .Values.ingress.enabled }}
+# Ingress for backend API: /api/* → backend with /api prefix stripped.
+# Uses nginx rewrite-target, which applies to all paths in this Ingress,
+# so it must be a separate resource from the frontend Ingress.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: task-tracker-api-ingress
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "task-tracker.labels" . | nindent 4 }}
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          # Negative lookahead excludes /api/auth/* so those reach
+          # the frontend BFF routes instead of the backend.
+          - path: /api(?!/auth)(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: backend
+                port:
+                  number: {{ .Values.backend.port }}
+---
+# Ingress for frontend + Socket.io (no rewrite needed).
+# /socket.io wins over / by longest-prefix match.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: task-tracker-frontend-ingress
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "task-tracker.labels" . | nindent 4 }}
+  annotations:
+    # WebSocket support for Socket.io
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/enable-websockets: "true"
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          # BFF auth routes must reach the Next.js API Route handlers,
+          # NOT the backend. /api/auth is more specific than the regex
+          # /api(/|$)(.*) in the API Ingress, so nginx picks this first.
+          - path: /api/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: {{ .Values.frontend.port }}
+          # Socket.io → backend (longest-prefix beats /)
+          - path: /socket.io
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: {{ .Values.backend.port }}
+          # Everything else → frontend
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: {{ .Values.frontend.port }}
+{{- end }}

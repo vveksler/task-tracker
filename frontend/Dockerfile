@@ -12,9 +12,12 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build-time env vars — overridden at runtime via docker-compose/k8s
-ENV NEXT_PUBLIC_API_URL=http://localhost:3001
-ENV NEXT_PUBLIC_WS_URL=http://localhost:3001
+# Build-time env vars baked into the client JS bundle.
+# Override via --build-arg for different environments (docker-compose, K8s).
+ARG NEXT_PUBLIC_API_URL=http://localhost:3001
+ARG NEXT_PUBLIC_WS_URL=http://localhost:3001
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build
