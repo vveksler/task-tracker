@@ -1,109 +1,252 @@
 # Task Tracker
 
-Full-stack Kanban task tracker — NestJS + Prisma + PostgreSQL backend,
-Next.js + Zustand + dnd-kit frontend, real-time board updates via Socket.io,
-analytics dashboard, containerized and deployed to Kubernetes via a
-self-authored Helm chart.
+Full-stack Kanban task tracker built to production standards: typed end-to-end,
+tested, containerized, and deployed to Kubernetes. Not a tutorial clone — every
+phase includes a deliberately hunted edge case (see [Engineering notes](#engineering-notes)).
 
-See `PROJECT_PLAN.md` for the full phased build plan, the reasoning behind
-every tech choice, and — most importantly — the "Hunt for" note in each
-phase: a deliberate edge case to find and fix, not just a feature to ship.
-That's the part worth talking about in an interview.
+## Architecture
 
-## Getting started (Phase 0)
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Kubernetes (minikube)                       │
+│                                                                     │
+│  ┌──────────────────────── Ingress (nginx) ───────────────────────┐ │
+│  │  /api/auth/*  → frontend:3000  (BFF)                          │ │
+│  │  /api/*       → backend:3001   (REST, rewrite strips /api)    │ │
+│  │  /socket.io   → backend:3001   (WebSocket)                    │ │
+│  │  /*           → frontend:3000  (Next.js pages)                │ │
+│  └───────────────────────────────────────────────────────────────-┘ │
+│                                                                     │
+│  ┌──────────────┐   ┌──────────────┐   ┌─────────────────────────┐ │
+│  │  Frontend     │   │  Backend     │   │  PostgreSQL             │ │
+│  │  Next.js 15   │──▶│  NestJS      │──▶│  StatefulSet + PVC     │ │
+│  │  App Router   │   │  Prisma ORM  │   │  (1 Gi persistent)     │ │
+│  │  Zustand      │   │  Socket.io   │   └─────────────────────────┘ │
+│  │  dnd-kit      │   │  JWT + RBAC  │                               │
+│  │  Recharts/D3  │   │  Terminus    │   ┌─────────────────────────┐ │
+│  └──────────────┘   └──────────────┘   │  Migrate Job            │ │
+│                                         │  prisma migrate deploy  │ │
+│  ┌────────────────────────────────────┐ └─────────────────────────┘ │
+│  │  HPA (1→3 replicas at 70% CPU)    │                              │
+│  └────────────────────────────────────┘                              │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+## Tech stack
+
+| Layer | Choice | Why |
+|---|---|---|
+| Backend | NestJS + TypeScript | Modular, DI-based, strong NestJS ecosystem |
+| ORM | Prisma | Type-safe queries, painless migrations |
+| Database | PostgreSQL 16 | Relational data with real foreign keys |
+| Auth | JWT access (in-memory) + refresh (httpOnly cookie) | Secure by design, not by accident |
+| Realtime | Socket.io via NestJS Gateway | Room-per-workspace, JWT-authenticated handshake |
+| Frontend | Next.js App Router | Server Components + Client Components, BFF pattern |
+| State | Zustand | Lightweight, works great with optimistic updates |
+| Drag & Drop | @dnd-kit | Built for reorder + cross-container moves |
+| Charts | Recharts + D3 | Standard charts + hand-rolled activity heatmap |
+| Containers | Docker (multi-stage) | Small production images (~150 MB) |
+| Orchestration | Kubernetes (Helm chart) | StatefulSet, Ingress, HPA, init containers |
+| CI | GitHub Actions | Lint + type-check + test + Docker build on push |
+
+## Getting started
 
 ### Prerequisites
 - Node.js 20+
-- Docker (for local Postgres)
-- Cursor, with this repo opened at its root so `.cursor/rules/*.mdc` loads
-  automatically
+- Docker Desktop
 
-### 1. Start the database
+### Option 1: Docker Compose (quickest)
+
 ```bash
-docker compose up -d
+docker compose up --build
 ```
 
-### 2. Backend setup
+Backend at `http://localhost:3001`, frontend at `http://localhost:3000`.
+
+### Option 2: Local development
+
 ```bash
+# Start Postgres
+docker compose up -d postgres
+
+# Backend
 cd backend
 cp .env.example .env
 npm install
-npx prisma migrate dev --name init
-npm run start:dev
-```
-Backend runs on `http://localhost:3001`. Once the health module exists
-(Phase 7), `GET /health/live` should return 200.
+npx prisma migrate dev
+npm run start:dev     # http://localhost:3001
 
-### 3. Frontend setup
-```bash
+# Frontend (separate terminal)
 cd frontend
 cp .env.example .env.local
 npm install
-npm run dev
+npm run dev           # http://localhost:3000
 ```
-Frontend runs on `http://localhost:3000`.
+
+### Option 3: Kubernetes (minikube)
+
+```bash
+# Start cluster and build images
+minikube start --driver=docker --cpus=4 --memory=4096
+eval $(minikube docker-env)
+docker build -t task-tracker-backend:latest ./backend
+docker build \
+  --build-arg NEXT_PUBLIC_API_URL=http://task-tracker.local/api \
+  --build-arg NEXT_PUBLIC_WS_URL=http://task-tracker.local \
+  -t task-tracker-frontend:latest ./frontend
+
+# Deploy
+kubectl create namespace task-tracker
+helm install task-tracker helm/task-tracker --namespace task-tracker
+
+# Access (add "127.0.0.1 task-tracker.local" to /etc/hosts)
+minikube tunnel
+# Open http://task-tracker.local
+```
+
+### Seed data (optional)
+
+```bash
+cd backend
+npx ts-node prisma/seed.ts
+```
+
+Creates 5,500+ tasks across projects for realistic analytics data.
+
+## Running tests
+
+```bash
+# Backend unit tests
+cd backend && npm test
+
+# Frontend unit tests
+cd frontend && npm test
+```
 
 ## Repo structure
 
 ```
 task-tracker/
-├── PROJECT_PLAN.md          # the actual plan — read this first
-├── docker-compose.yml         # local Postgres only (K8s comes in Phase 8)
-├── .cursor/rules/*.mdc          # Cursor AI rules — auto-loaded, scoped by path
-├── backend/                       # NestJS API
-│   └── prisma/schema.prisma         # source of truth for the data model
-└── frontend/                        # Next.js app
+├── .github/workflows/ci.yml    # GitHub Actions: test + build
+├── PROJECT_PLAN.md              # Phased plan with "Hunt for" notes
+├── docker-compose.yml           # Local: Postgres + backend + frontend
+├── helm/task-tracker/           # Self-authored Helm chart
+│   ├── Chart.yaml
+│   ├── values.yaml
+│   └── templates/               # 14 K8s manifests
+├── backend/                     # NestJS API
+│   ├── prisma/schema.prisma     # Data model source of truth
+│   └── src/
+│       ├── auth/                # JWT + refresh token rotation + grace period
+│       ├── workspaces/          # CRUD + RBAC guards
+│       ├── projects/            # CRUD, workspace-scoped
+│       ├── tasks/               # CRUD + reorder (fractional indexing)
+│       ├── analytics/           # Status breakdown, activity, assignee load
+│       ├── events/              # Socket.io Gateway (room-per-workspace)
+│       └── health/              # /health/live + /health/ready (Terminus)
+└── frontend/                    # Next.js App Router
+    └── src/
+        ├── app/
+        │   ├── api/auth/        # BFF routes (login, register, refresh, logout)
+        │   ├── auth/            # Login & register pages
+        │   └── workspaces/      # Workspace → project → Kanban board
+        ├── components/          # Board columns, task cards, modals, UI kit
+        ├── lib/                 # api-client, auth-context, stores
+        └── middleware.ts        # Token refresh + access token injection for RSC
 ```
 
-## Working with Cursor on this repo
+## Engineering notes
 
-The `.cursor/rules/` directory contains five rule files that load
-automatically based on which files you're editing:
+These are the deliberate edge cases hunted down in each phase — the part
+worth walking through in an interview.
 
-- `000-general.mdc` — always applied, project context and working agreement
-- `010-backend-nestjs.mdc` — applies to `backend/**/*.ts`
-- `020-frontend-nextjs.mdc` — applies to `frontend/**/*.tsx` and `.ts`
-- `030-security.mdc` — always applied, non-negotiable security rules
-- `040-git-commits.mdc` — commit message conventions
+### Phase 1 — Refresh token replay after logout
 
-Cursor picks these up automatically as long as you open the repo root as
-your workspace. No extra setup needed — just start prompting inside
-`backend/` or `frontend/` files and the relevant rules apply.
+**Problem:** After logout, a revoked refresh token could still be exchanged
+for a new access token if the revocation check only deleted the DB row
+without verifying it on subsequent calls.
 
-## Suggested prompts to kick off each phase in Cursor
+**Fix:** Three-step validation in the `refresh` endpoint: (1) token exists,
+(2) not expired, (3) not revoked (`revokedAt IS NULL`). Each failure returns
+a distinct error message. Additionally implemented a 30-second grace period
+with `replacedByHash` chain traversal for parallel Server Component requests
+that hit the same token during rotation.
 
-Paste these into Cursor chat once you're in the right folder — they reference
-the plan and rules so Cursor has full context:
+### Phase 2 — RBAC bypass via direct API call
 
-**Phase 1 (backend/):**
-> Implement Phase 1 from PROJECT_PLAN.md — the auth module. Follow
-> 010-backend-nestjs.mdc and 030-security.mdc. Include the refresh-token
-> revocation check called out in the "Hunt for" note, with a test for it.
+**Problem:** The frontend hides the "Remove Member" button for non-admins,
+but a `member` could call `DELETE /workspaces/:id/members/:userId` directly
+via curl and succeed — UI hiding is UX, not security.
 
-**Phase 3 (backend/):**
-> Implement Phase 3 from PROJECT_PLAN.md — tasks and the reorder endpoint.
-> Before finalizing, deliberately write a test that simulates two concurrent
-> reorder calls and show me it failing, then fix it and show the fix.
+**Fix:** Custom `WorkspaceRolesGuard` with `@Roles('admin')` decorator
+re-checks the caller's workspace role server-side on every mutating endpoint.
+Tested by calling the endpoint with a member's token and confirming 403.
 
-**Phase 5 (frontend/):**
-> Implement Phase 5 from PROJECT_PLAN.md — the Kanban board with dnd-kit and
-> Zustand. Implement the optimistic-update rollback described in the
-> "Hunt for" note, including a visible error state on failure.
+### Phase 3 — Concurrent reorder race condition
 
-Keep doing this per phase — always point Cursor at the specific "Hunt for"
-note, don't let it stop at the happy path.
+**Problem:** Two simultaneous drag-and-drop operations in the same column
+read the same `order` values before either write completes, causing order
+collisions and cards jumping to wrong positions.
 
-## Engineering notes (fill this in as you go)
+**Fix:** Fractional indexing (order stored as `Float`) combined with a
+`Serializable` Prisma transaction that re-reads and computes the midpoint
+atomically. Retry logic on `P2034` serialization errors. Trade-off: chose
+fractional indexing over full re-index because it's O(1) per move instead
+of O(n).
 
-Once you've found and fixed the deliberate edge cases in each phase, write
-2-3 sentences here about each one: what could go wrong, why, what you did.
-This section is what you actually walk an interviewer through.
+### Phase 4 — Stale board after WebSocket reconnect
 
-- Phase 1 (auth):
-- Phase 2 (RBAC):
-- Phase 3 (reorder race condition):
-- Phase 4 (WebSocket reconnect):
-- Phase 5 (optimistic rollback):
-- Phase 6 (query performance):
-- Phase 7 (health checks):
-- Phase 8 (K8s startup ordering):
+**Problem:** When a client loses connection (e.g. laptop sleep) and
+reconnects, it silently misses all events that occurred while disconnected,
+leaving the board stale until manual page refresh.
+
+**Fix:** Full `board:sync` event emitted on every `workspace:join`, including
+reconnects. The client receives the complete board state and replaces its
+local store, ensuring consistency regardless of missed events.
+
+### Phase 5 — Optimistic update rollback on API failure
+
+**Problem:** When a card is dragged and the backend request fails (e.g. server
+down), the card stays in the wrong column with no indication of failure —
+the UI lies about the server state.
+
+**Fix:** `board-store` saves a snapshot before every optimistic move. On API
+error, it rolls back to the snapshot and surfaces an error message. Tested
+by simulating API failures in the store tests.
+
+### Phase 6 — Sequential scan on activity query
+
+**Problem:** The `activity-over-time` endpoint with `date_trunc` and
+`generate_series` performed a sequential scan on the `tasks` table.
+With 5,500+ seeded tasks, `EXPLAIN ANALYZE` showed the query scanning
+every row.
+
+**Fix:** Added `@@index([projectId, createdAt])` composite index to the
+Task model. The planner now uses an Index Scan when the table is large
+enough for it to be cost-effective. Documented before/after in the commit.
+
+### Phase 7 — Health probe that lies
+
+**Problem:** `/health/ready` returned 200 unconditionally — even when
+Postgres was down. Kubernetes would keep routing traffic to a pod that
+can't serve requests.
+
+**Fix:** Integrated `@nestjs/terminus` with `PrismaHealthIndicator` that
+runs `SELECT 1` against the database. Verified by stopping the Postgres
+container and confirming `/health/ready` returns 503 while `/health/live`
+still returns 200.
+
+### Phase 8 — Crash-loop on Kubernetes startup
+
+**Problem:** Backend pods crash-loop trying to connect to Postgres before
+the StatefulSet is ready. Kubernetes restarts them with exponential backoff,
+causing 2-3 minute delays before the app becomes available.
+
+**Fix:** `busybox` init container on backend, frontend, and migrate pods
+that polls `nc -z postgres 5432` every 2 seconds. The main container only
+starts after Postgres accepts TCP connections. This is one of the most
+common real-world K8s problems — not contrived.
+
+## License
+
+MIT
