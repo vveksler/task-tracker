@@ -14,15 +14,6 @@ const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
   { value: 'DONE', label: 'Done' },
 ];
 
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((w) => w[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-}
-
 interface TaskModalProps {
   task: Task;
   workspaceId: string;
