@@ -89,7 +89,21 @@ export class AuthService {
    * Each condition has its own rejection reason. A revoked token (logged out)
    * is explicitly detected and rejected, blocking replay attacks.
    */
-  async refresh(rawRefreshToken: string): Promise<AuthResult> {
+  /**
+   * Validate the refresh token and issue new credentials.
+   *
+   * @param rotate — when true (default), revokes the old refresh token and
+   *   issues a new one (full rotation). When false, only issues a new access
+   *   token and returns the SAME refresh token back without rotation.
+   *
+   *   rotate=false is used by the Next.js middleware which may fire multiple
+   *   parallel RSC requests per navigation — rotating on each would revoke
+   *   the token before the second request arrives. Client-side BFF refresh
+   *   still uses rotate=true for proper security rotation.
+   *
+   * Hunt for (Phase 1): three-step check — not found / revoked / expired.
+   */
+  async refresh(rawRefreshToken: string, rotate = true): Promise<AuthResult> {
     const tokenHash = this.hashToken(rawRefreshToken);
 
     const stored = await this.prisma.refreshToken.findUnique({
@@ -106,13 +120,6 @@ export class AuthService {
       throw new UnauthorizedException('Token expired');
     }
 
-    // Rotate: revoke the old token, issue a new pair.
-    // Token rotation limits the window if a refresh token leaks.
-    await this.prisma.refreshToken.update({
-      where: { id: stored.id },
-      data: { revokedAt: new Date() },
-    });
-
     const user = await this.prisma.user.findUnique({
       where: { id: stored.userId },
       select: { id: true, email: true, name: true },
@@ -122,8 +129,27 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
 
-    const tokens = await this.issueTokens(user.id, user.email);
-    return { ...tokens, user };
+    if (rotate) {
+      // Revoke old token, issue a completely new pair
+      await this.prisma.refreshToken.update({
+        where: { id: stored.id },
+        data: { revokedAt: new Date() },
+      });
+
+      const tokens = await this.issueTokens(user.id, user.email);
+      return { ...tokens, user };
+    }
+
+    // No rotation: issue a fresh access token, return the same refresh token
+    const accessToken = this.jwt.sign(
+      { sub: user.id, email: user.email },
+      {
+        secret: this.config.get<string>('jwt.accessSecret'),
+        expiresIn: this.config.get<string>('jwt.accessExpiresIn') as `${number}m`,
+      },
+    );
+
+    return { accessToken, refreshToken: rawRefreshToken, user };
   }
 
   async logout(rawRefreshToken: string): Promise<void> {

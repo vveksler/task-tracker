@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -17,6 +15,65 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      DATABASE_URL: "postgresql://tracker:tracker@postgres:5432/task_tracker?schema=public"
+      JWT_ACCESS_SECRET: "docker-access-secret-change-in-prod"
+      JWT_ACCESS_EXPIRES_IN: "15m"
+      JWT_REFRESH_SECRET: "docker-refresh-secret-change-in-prod"
+      JWT_REFRESH_EXPIRES_IN: "7d"
+      FRONTEND_ORIGIN: "http://localhost:3000"
+      PORT: "3001"
+      NODE_ENV: "production"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: "http://localhost:3001"
+        NEXT_PUBLIC_WS_URL: "http://localhost:3001"
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Server-side calls go to the internal Docker network
+      BACKEND_INTERNAL_URL: "http://backend:3001"
+      # Client-side calls go through the browser (host network)
+      NEXT_PUBLIC_API_URL: "http://localhost:3001"
+      NEXT_PUBLIC_WS_URL: "http://localhost:3001"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # One-shot: run migrations after backend is healthy
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: npx prisma migrate deploy
+    environment:
+      DATABASE_URL: "postgresql://tracker:tracker@postgres:5432/task_tracker?schema=public"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
 
 volumes:
   pgdata:

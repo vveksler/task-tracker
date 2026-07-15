@@ -38,10 +38,13 @@ export async function middleware(request: NextRequest) {
   }
 
   try {
+    // rotate: false — middleware may fire multiple parallel RSC requests
+    // per navigation; rotating on each would revoke the token before the
+    // second request arrives. Rotation still happens on client-side BFF refresh.
     const res = await fetch(`${BACKEND_URL}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
+      body: JSON.stringify({ refreshToken, rotate: false }),
     });
 
     if (!res.ok) {
@@ -54,25 +57,12 @@ export async function middleware(request: NextRequest) {
 
     const data = (await res.json()) as RefreshResponse;
 
-    // Pass access token to Server Components via request header
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set('x-access-token', data.accessToken);
 
-    const response = NextResponse.next({
+    return NextResponse.next({
       request: { headers: requestHeaders },
     });
-
-    // Persist the rotated refresh token
-    const isProduction = process.env.NODE_ENV === 'production';
-    response.cookies.set(REFRESH_COOKIE, data.refreshToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60,
-    });
-
-    return response;
   } catch {
     return NextResponse.redirect(new URL('/auth/login', request.url));
   }
