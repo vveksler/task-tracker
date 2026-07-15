@@ -1,22 +1,20 @@
 /**
  * Auth middleware tests.
  *
- * These tests cover the exact bug that caused the auth redirect loop:
- * serverFetch called /auth/refresh which rotated the token, but Server
- * Components can't call cookies().set() — so the new token was lost.
- * Middleware solves this by running before the page render and being
- * able to set response cookies.
+ * The middleware validates the refresh token with rotate=false so that
+ * parallel RSC requests (layout + page) don't revoke each other's tokens.
+ * Token rotation only happens on explicit client-side BFF refresh.
  *
  * Key scenarios tested:
- * - Rotated refresh token is persisted in the response cookie
+ * - rotate: false is sent to the backend (no token rotation)
  * - Access token is passed to Server Components via x-access-token header
+ * - Cookie is NOT rewritten (no rotation = no new cookie needed)
  * - Missing/invalid cookie → redirect to login
  * - Backend failure → redirect to login with cookie cleared
+ * - Parallel requests don't interfere with each other
  */
 
 import { middleware } from './middleware';
-
-// ── NextRequest / NextResponse stubs ──
 
 const originalFetch = global.fetch;
 
@@ -56,7 +54,6 @@ function jsonResponse(body: unknown, status = 200) {
   } as Response);
 }
 
-// Minimal mock for NextResponse since Jest doesn't have the real Next.js runtime
 jest.mock('next/server', () => {
   class MockNextResponse {
     status: number;
@@ -136,7 +133,7 @@ describe('auth middleware', () => {
   describe('when refresh_token cookie exists and backend returns success', () => {
     const backendResponse = {
       accessToken: 'new-access-token',
-      refreshToken: 'rotated-refresh-token',
+      refreshToken: 'same-refresh-token',
       user: { id: '1', email: 'a@b.com', name: 'Alice' },
     };
 
@@ -144,40 +141,32 @@ describe('auth middleware', () => {
       mockFetch().mockReturnValue(jsonResponse(backendResponse));
     });
 
-    it('should call backend /auth/refresh with the token in the body', async () => {
+    it('should call backend with rotate: false to prevent parallel request conflicts', async () => {
       const req = makeRequest(`${BASE}/workspaces`, {
-        refresh_token: 'old-refresh-token',
+        refresh_token: 'my-refresh-token',
       });
       await middleware(req);
 
-      expect(mockFetch()).toHaveBeenCalledWith(
-        expect.stringContaining('/auth/refresh'),
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify({ refreshToken: 'old-refresh-token' }),
-        }),
-      );
+      const [, init] = mockFetch().mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(init.body as string);
+      expect(body).toEqual({
+        refreshToken: 'my-refresh-token',
+        rotate: false,
+      });
     });
 
-    it('should persist the ROTATED refresh token in the response cookie', async () => {
+    it('should NOT set a new cookie (no rotation = cookie unchanged)', async () => {
       const req = makeRequest(`${BASE}/workspaces`, {
-        refresh_token: 'old-refresh-token',
+        refresh_token: 'my-refresh-token',
       });
       const res = await middleware(req);
 
-      const cookie = (res as any)._cookies.get('refresh_token');
-      expect(cookie).toBeDefined();
-      expect(cookie.value).toBe('rotated-refresh-token');
-      expect(cookie.options).toMatchObject({
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-      });
+      expect((res as any)._cookies.size).toBe(0);
     });
 
     it('should pass the access token via x-access-token request header', async () => {
       const req = makeRequest(`${BASE}/workspaces/abc`, {
-        refresh_token: 'old-refresh-token',
+        refresh_token: 'my-refresh-token',
       });
       const res = await middleware(req);
 
@@ -188,7 +177,7 @@ describe('auth middleware', () => {
 
     it('should NOT redirect — allows the page to render', async () => {
       const req = makeRequest(`${BASE}/workspaces`, {
-        refresh_token: 'old-refresh-token',
+        refresh_token: 'my-refresh-token',
       });
       const res = await middleware(req);
 
@@ -237,53 +226,43 @@ describe('auth middleware', () => {
     });
   });
 
-  describe('token rotation persistence (the original bug)', () => {
-    it('consecutive navigations should use the rotated token, not the original', async () => {
-      // Simulates the exact bug: two navigations in sequence.
-      // First nav: old-token → backend rotates to token-v2
-      // Second nav: should use token-v2, NOT old-token
+  describe('parallel RSC requests (the race condition fix)', () => {
+    it('multiple simultaneous requests with the same token all succeed', async () => {
+      // With rotate: false, both requests validate the same token
+      // without revoking it — no race condition.
+      mockFetch().mockReturnValue(
+        jsonResponse({
+          accessToken: 'access-token',
+          refreshToken: 'same-token',
+          user: { id: '1', email: 'a@b.com', name: 'A' },
+        }),
+      );
 
-      mockFetch()
-        .mockReturnValueOnce(
-          jsonResponse({
-            accessToken: 'access-1',
-            refreshToken: 'token-v2',
-            user: { id: '1', email: 'a@b.com', name: 'A' },
-          }),
-        )
-        .mockReturnValueOnce(
-          jsonResponse({
-            accessToken: 'access-2',
-            refreshToken: 'token-v3',
-            user: { id: '1', email: 'a@b.com', name: 'A' },
-          }),
-        );
-
-      // First navigation — middleware receives old cookie
-      const req1 = makeRequest(`${BASE}/workspaces`, {
-        refresh_token: 'old-token',
+      const req1 = makeRequest(`${BASE}/workspaces/abc`, {
+        refresh_token: 'same-token',
       });
-      const res1 = await middleware(req1);
-
-      // Middleware set the rotated token in the response cookie
-      const rotatedCookie = (res1 as any)._cookies.get('refresh_token');
-      expect(rotatedCookie.value).toBe('token-v2');
-
-      // Second navigation — browser would send the rotated cookie
       const req2 = makeRequest(`${BASE}/workspaces/abc`, {
-        refresh_token: rotatedCookie.value,
-      });
-      const res2 = await middleware(req2);
-
-      // Verify the second call used the rotated token
-      const secondCall = mockFetch().mock.calls[1];
-      expect(JSON.parse(secondCall[1].body)).toEqual({
-        refreshToken: 'token-v2',
+        refresh_token: 'same-token',
       });
 
-      // And the response has the next rotation
-      const nextCookie = (res2 as any)._cookies.get('refresh_token');
-      expect(nextCookie.value).toBe('token-v3');
+      const [res1, res2] = await Promise.all([
+        middleware(req1),
+        middleware(req2),
+      ]);
+
+      // Both succeed (no redirect)
+      expect((res1 as any)._redirectUrl).toBeUndefined();
+      expect((res2 as any)._redirectUrl).toBeUndefined();
+
+      // Both pass the access token
+      expect((res1 as any)._requestHeaders.get('x-access-token')).toBe('access-token');
+      expect((res2 as any)._requestHeaders.get('x-access-token')).toBe('access-token');
+
+      // Both sent rotate: false
+      for (const call of mockFetch().mock.calls) {
+        const body = JSON.parse(call[1].body as string);
+        expect(body.rotate).toBe(false);
+      }
     });
   });
 });

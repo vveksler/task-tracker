@@ -67,10 +67,9 @@ export class AuthController {
   @ApiOperation({ summary: 'Refresh access token using httpOnly cookie or body token' })
   async refresh(
     @Req() req: Request,
-    @Body() body: { refreshToken?: string },
+    @Body() body: { refreshToken?: string; rotate?: boolean },
     @Res({ passthrough: true }) res: Response,
   ) {
-    // Accept refresh token from body (BFF) or cookie (direct browser)
     const rawToken =
       body?.refreshToken ??
       (req.cookies?.[REFRESH_COOKIE] as string | undefined);
@@ -79,8 +78,16 @@ export class AuthController {
       throw new UnauthorizedException('No refresh token provided');
     }
 
-    const result = await this.authService.refresh(rawToken);
-    this.setRefreshCookie(res, result.refreshToken);
+    // rotate defaults to true; middleware passes rotate=false to avoid
+    // race conditions with parallel RSC requests
+    const rotate = body?.rotate !== false;
+
+    const result = await this.authService.refresh(rawToken, rotate);
+
+    if (rotate) {
+      this.setRefreshCookie(res, result.refreshToken);
+    }
+
     return {
       accessToken: result.accessToken,
       refreshToken: result.refreshToken,
