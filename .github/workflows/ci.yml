@@ -52,7 +52,7 @@ jobs:
         run: npx prisma migrate deploy
 
       - name: Lint
-        run: npm run lint -- --max-warnings 0
+        run: npx eslint "src/**/*.ts" --max-warnings 0
 
       - name: Type-check
         run: npx tsc --noEmit
@@ -80,7 +80,7 @@ jobs:
       - run: npm ci
 
       - name: Lint
-        run: npm run lint
+        run: npx eslint .
 
       - name: Type-check
         run: npx tsc --noEmit
