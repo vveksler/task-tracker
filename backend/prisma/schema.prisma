@@ -35,13 +35,17 @@ model User {
 }
 
 model RefreshToken {
-  id        String   @id @default(uuid())
-  tokenHash String   @unique
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expiresAt DateTime
-  revokedAt DateTime?
-  createdAt DateTime @default(now())
+  id             String   @id @default(uuid())
+  tokenHash      String   @unique
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  // Points to the token that replaced this one during rotation.
+  // Used by the grace period: if a revoked token is reused within
+  // GRACE_PERIOD_MS, look up the replacement instead of rejecting.
+  replacedByHash String?
+  createdAt      DateTime @default(now())
 
   @@index([userId])
   @@map("refresh_tokens")

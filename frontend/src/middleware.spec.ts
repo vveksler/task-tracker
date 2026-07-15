@@ -1,17 +1,18 @@
 /**
  * Auth middleware tests.
  *
- * The middleware validates the refresh token with rotate=false so that
- * parallel RSC requests (layout + page) don't revoke each other's tokens.
- * Token rotation only happens on explicit client-side BFF refresh.
+ * The middleware performs full token rotation on each request. The backend's
+ * grace period handles the race condition where parallel requests (layout +
+ * page) both present the same token — the first rotates it, the second
+ * finds the revoked token within the grace window and follows the
+ * replacedByHash chain to get a fresh access token.
  *
  * Key scenarios tested:
- * - rotate: false is sent to the backend (no token rotation)
+ * - Full rotation: new refresh token is set as cookie
+ * - Grace period: parallel request gets access token (empty refreshToken)
  * - Access token is passed to Server Components via x-access-token header
- * - Cookie is NOT rewritten (no rotation = no new cookie needed)
  * - Missing/invalid cookie → redirect to login
  * - Backend failure → redirect to login with cookie cleared
- * - Parallel requests don't interfere with each other
  */
 
 import { middleware } from './middleware';
@@ -130,10 +131,10 @@ describe('auth middleware', () => {
     });
   });
 
-  describe('when refresh_token cookie exists and backend returns success', () => {
+  describe('when refresh_token cookie exists and backend rotates', () => {
     const backendResponse = {
       accessToken: 'new-access-token',
-      refreshToken: 'same-refresh-token',
+      refreshToken: 'new-refresh-token',
       user: { id: '1', email: 'a@b.com', name: 'Alice' },
     };
 
@@ -141,7 +142,7 @@ describe('auth middleware', () => {
       mockFetch().mockReturnValue(jsonResponse(backendResponse));
     });
 
-    it('should call backend with rotate: false to prevent parallel request conflicts', async () => {
+    it('should call backend with the refresh token (full rotation)', async () => {
       const req = makeRequest(`${BASE}/workspaces`, {
         refresh_token: 'my-refresh-token',
       });
@@ -149,19 +150,18 @@ describe('auth middleware', () => {
 
       const [, init] = mockFetch().mock.calls[0] as [string, RequestInit];
       const body = JSON.parse(init.body as string);
-      expect(body).toEqual({
-        refreshToken: 'my-refresh-token',
-        rotate: false,
-      });
+      expect(body).toEqual({ refreshToken: 'my-refresh-token' });
     });
 
-    it('should NOT set a new cookie (no rotation = cookie unchanged)', async () => {
+    it('should set the new refresh_token cookie after rotation', async () => {
       const req = makeRequest(`${BASE}/workspaces`, {
         refresh_token: 'my-refresh-token',
       });
       const res = await middleware(req);
 
-      expect((res as any)._cookies.size).toBe(0);
+      const cookie = (res as any)._cookies.get('refresh_token');
+      expect(cookie).toBeDefined();
+      expect(cookie.value).toBe('new-refresh-token');
     });
 
     it('should pass the access token via x-access-token request header', async () => {
@@ -182,6 +182,37 @@ describe('auth middleware', () => {
       const res = await middleware(req);
 
       expect((res as any)._redirectUrl).toBeUndefined();
+    });
+  });
+
+  describe('when backend returns a grace period response (empty refreshToken)', () => {
+    const gracePeriodResponse = {
+      accessToken: 'grace-access-token',
+      refreshToken: '',
+      user: { id: '1', email: 'a@b.com', name: 'Alice' },
+    };
+
+    beforeEach(() => {
+      mockFetch().mockReturnValue(jsonResponse(gracePeriodResponse));
+    });
+
+    it('should NOT overwrite the cookie (empty refreshToken = grace period)', async () => {
+      const req = makeRequest(`${BASE}/workspaces`, {
+        refresh_token: 'old-token',
+      });
+      const res = await middleware(req);
+
+      expect((res as any)._cookies.size).toBe(0);
+    });
+
+    it('should still pass the access token via x-access-token header', async () => {
+      const req = makeRequest(`${BASE}/workspaces/abc`, {
+        refresh_token: 'old-token',
+      });
+      const res = await middleware(req);
+
+      const requestHeaders = (res as any)._requestHeaders as Headers;
+      expect(requestHeaders.get('x-access-token')).toBe('grace-access-token');
     });
   });
 
@@ -226,17 +257,25 @@ describe('auth middleware', () => {
     });
   });
 
-  describe('parallel RSC requests (the race condition fix)', () => {
-    it('multiple simultaneous requests with the same token all succeed', async () => {
-      // With rotate: false, both requests validate the same token
-      // without revoking it — no race condition.
-      mockFetch().mockReturnValue(
-        jsonResponse({
-          accessToken: 'access-token',
-          refreshToken: 'same-token',
-          user: { id: '1', email: 'a@b.com', name: 'A' },
-        }),
-      );
+  describe('parallel RSC requests (grace period handles the race)', () => {
+    it('first request rotates, second gets grace period response — both succeed', async () => {
+      // First request: normal rotation
+      // Second request: grace period (token was just rotated by first)
+      mockFetch()
+        .mockReturnValueOnce(
+          jsonResponse({
+            accessToken: 'access-token-1',
+            refreshToken: 'new-token',
+            user: { id: '1', email: 'a@b.com', name: 'A' },
+          }),
+        )
+        .mockReturnValueOnce(
+          jsonResponse({
+            accessToken: 'access-token-2',
+            refreshToken: '', // grace period — no new token
+            user: { id: '1', email: 'a@b.com', name: 'A' },
+          }),
+        );
 
       const req1 = makeRequest(`${BASE}/workspaces/abc`, {
         refresh_token: 'same-token',
@@ -254,15 +293,13 @@ describe('auth middleware', () => {
       expect((res1 as any)._redirectUrl).toBeUndefined();
       expect((res2 as any)._redirectUrl).toBeUndefined();
 
-      // Both pass the access token
-      expect((res1 as any)._requestHeaders.get('x-access-token')).toBe('access-token');
-      expect((res2 as any)._requestHeaders.get('x-access-token')).toBe('access-token');
+      // Both pass access tokens
+      expect((res1 as any)._requestHeaders.get('x-access-token')).toBe('access-token-1');
+      expect((res2 as any)._requestHeaders.get('x-access-token')).toBe('access-token-2');
 
-      // Both sent rotate: false
-      for (const call of mockFetch().mock.calls) {
-        const body = JSON.parse(call[1].body as string);
-        expect(body.rotate).toBe(false);
-      }
+      // First request updates cookie, second does not
+      expect((res1 as any)._cookies.get('refresh_token')?.value).toBe('new-token');
+      expect((res2 as any)._cookies.size).toBe(0);
     });
   });
 });
