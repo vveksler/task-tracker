@@ -1,0 +1,63 @@
+# ── Global ──
+namespace: task-tracker
+
+# ── PostgreSQL ──
+postgres:
+  image: postgres:16-alpine
+  user: tracker
+  password: tracker
+  database: task_tracker
+  storage: 1Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# ── Backend (NestJS) ──
+backend:
+  image: task-tracker-backend:latest
+  imagePullPolicy: Never          # minikube uses local images
+  replicas: 1
+  port: 3001
+  jwtAccessSecret: k8s-access-secret-change-in-prod
+  jwtAccessExpiresIn: "15m"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  hpa:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilization: 70
+
+# ── Frontend (Next.js) ──
+frontend:
+  image: task-tracker-frontend:latest
+  imagePullPolicy: Never
+  replicas: 1
+  port: 3000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  hpa:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilization: 70
+
+# ── Ingress ──
+ingress:
+  enabled: true
+  className: nginx
+  host: task-tracker.local
