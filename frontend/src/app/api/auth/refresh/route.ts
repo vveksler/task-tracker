@@ -33,7 +33,11 @@ export async function POST() {
 
   const { accessToken, refreshToken, user } = data as BackendAuthResponse;
 
-  cookieStore.set(REFRESH_COOKIE_NAME, refreshToken, refreshCookieOptions());
+  // Only update cookie if backend rotated (non-empty refreshToken).
+  // Grace period responses return empty refreshToken.
+  if (refreshToken) {
+    cookieStore.set(REFRESH_COOKIE_NAME, refreshToken, refreshCookieOptions());
+  }
 
   return NextResponse.json({ accessToken, user });
 }

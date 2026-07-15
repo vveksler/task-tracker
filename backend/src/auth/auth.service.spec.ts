@@ -183,12 +183,13 @@ describe('AuthService', () => {
   describe('refresh', () => {
     const rawToken = 'a'.repeat(80); // simulates a 40-byte hex token
 
-    it('should return new token pair for valid refresh token', async () => {
+    it('should rotate: revoke old token, issue new pair, link via replacedByHash', async () => {
       prisma.refreshToken.findUnique.mockResolvedValue({
         id: 'rt-1',
         tokenHash: hashToken(rawToken),
         userId: mockUser.id,
         revokedAt: null,
+        replacedByHash: null,
         expiresAt: new Date(Date.now() + 86_400_000),
       });
       prisma.refreshToken.update.mockResolvedValue({});
@@ -211,7 +212,10 @@ describe('AuthService', () => {
       expect(prisma.refreshToken.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'rt-1' },
-          data: { revokedAt: expect.any(Date) },
+          data: {
+            revokedAt: expect.any(Date),
+            replacedByHash: hashToken(result.refreshToken),
+          },
         }),
       );
     });
@@ -227,17 +231,17 @@ describe('AuthService', () => {
     /**
      * HUNT FOR (Phase 1): Refresh token replay after logout.
      *
-     * Scenario: user logs out (revokedAt set in DB), then an attacker
-     * tries to reuse the same refresh token. The three-step check
-     * detects revokedAt is set and throws a specific "Token has been revoked"
-     * error — not a generic "invalid token".
+     * Scenario: user logs out (revokedAt set, no replacedByHash),
+     * then an attacker reuses the token. The three-step check
+     * detects revokedAt + no replacement → "Token has been revoked".
      */
-    it('should reject a revoked refresh token (replay after logout)', async () => {
+    it('should reject a revoked token without replacedByHash (logout)', async () => {
       prisma.refreshToken.findUnique.mockResolvedValue({
         id: 'rt-1',
         tokenHash: hashToken(rawToken),
         userId: mockUser.id,
-        revokedAt: new Date(), // <-- revoked
+        revokedAt: new Date(),
+        replacedByHash: null,
         expiresAt: new Date(Date.now() + 86_400_000),
       });
 
@@ -252,12 +256,92 @@ describe('AuthService', () => {
         tokenHash: hashToken(rawToken),
         userId: mockUser.id,
         revokedAt: null,
-        expiresAt: new Date(Date.now() - 1000), // <-- expired
+        replacedByHash: null,
+        expiresAt: new Date(Date.now() - 1000),
       });
 
       await expect(service.refresh(rawToken)).rejects.toThrow(
         'Token expired',
       );
+    });
+
+    describe('grace period', () => {
+      const replacementRawToken = 'b'.repeat(80);
+      const replacementHash = hashToken(replacementRawToken);
+
+      it('should allow reuse of a recently-rotated token within grace period', async () => {
+        // First call: findUnique returns the revoked original token
+        prisma.refreshToken.findUnique
+          .mockResolvedValueOnce({
+            id: 'rt-1',
+            tokenHash: hashToken(rawToken),
+            userId: mockUser.id,
+            revokedAt: new Date(Date.now() - 5_000), // 5s ago — within 30s grace
+            replacedByHash: replacementHash,
+            expiresAt: new Date(Date.now() + 86_400_000),
+          })
+          // Second call: findUnique returns the live replacement token
+          .mockResolvedValueOnce({
+            id: 'rt-2',
+            tokenHash: replacementHash,
+            userId: mockUser.id,
+            revokedAt: null,
+            replacedByHash: null,
+            expiresAt: new Date(Date.now() + 86_400_000),
+          });
+
+        prisma.user.findUnique.mockResolvedValue({
+          id: mockUser.id,
+          email: mockUser.email,
+          name: mockUser.name,
+        });
+
+        const result = await service.refresh(rawToken);
+
+        expect(result.accessToken).toBeDefined();
+        // Grace period returns empty refreshToken (caller only needs accessToken)
+        expect(result.refreshToken).toBe('');
+        expect(result.user.email).toBe(mockUser.email);
+      });
+
+      it('should reject a rotated token outside the grace period', async () => {
+        prisma.refreshToken.findUnique.mockResolvedValueOnce({
+          id: 'rt-1',
+          tokenHash: hashToken(rawToken),
+          userId: mockUser.id,
+          revokedAt: new Date(Date.now() - 60_000), // 60s ago — outside 30s grace
+          replacedByHash: replacementHash,
+          expiresAt: new Date(Date.now() + 86_400_000),
+        });
+
+        await expect(service.refresh(rawToken)).rejects.toThrow(
+          'Token has been revoked',
+        );
+      });
+
+      it('should reject if the replacement token is also revoked', async () => {
+        prisma.refreshToken.findUnique
+          .mockResolvedValueOnce({
+            id: 'rt-1',
+            tokenHash: hashToken(rawToken),
+            userId: mockUser.id,
+            revokedAt: new Date(Date.now() - 5_000),
+            replacedByHash: replacementHash,
+            expiresAt: new Date(Date.now() + 86_400_000),
+          })
+          .mockResolvedValueOnce({
+            id: 'rt-2',
+            tokenHash: replacementHash,
+            userId: mockUser.id,
+            revokedAt: new Date(), // replacement also revoked
+            replacedByHash: null,
+            expiresAt: new Date(Date.now() + 86_400_000),
+          });
+
+        await expect(service.refresh(rawToken)).rejects.toThrow(
+          'Token has been revoked',
+        );
+      });
     });
   });
 

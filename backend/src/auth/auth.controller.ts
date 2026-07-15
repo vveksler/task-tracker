@@ -67,7 +67,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Refresh access token using httpOnly cookie or body token' })
   async refresh(
     @Req() req: Request,
-    @Body() body: { refreshToken?: string; rotate?: boolean },
+    @Body() body: { refreshToken?: string },
     @Res({ passthrough: true }) res: Response,
   ) {
     const rawToken =
@@ -78,13 +78,10 @@ export class AuthController {
       throw new UnauthorizedException('No refresh token provided');
     }
 
-    // rotate defaults to true; middleware passes rotate=false to avoid
-    // race conditions with parallel RSC requests
-    const rotate = body?.rotate !== false;
+    const result = await this.authService.refresh(rawToken);
 
-    const result = await this.authService.refresh(rawToken, rotate);
-
-    if (rotate) {
+    // Grace period responses return empty refreshToken — don't overwrite cookie
+    if (result.refreshToken) {
       this.setRefreshCookie(res, result.refreshToken);
     }
 

@@ -15,6 +15,12 @@ const BCRYPT_ROUNDS = 12;
 const REFRESH_TOKEN_BYTES = 40;
 const REFRESH_TOKEN_DAYS = 7;
 
+// Grace period: if a rotated (revoked) token is reused within this window,
+// look up its replacement instead of rejecting. This handles the race
+// condition where parallel requests (e.g. Next.js middleware + RSC) both
+// try to use the same token, and the second arrives after the first rotated it.
+const GRACE_PERIOD_MS = 30_000; // 30 seconds
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -83,27 +89,22 @@ export class AuthService {
   }
 
   /**
-   * Validate the refresh token from the cookie, issue new token pair.
+   * Validate the refresh token and issue new credentials with full rotation.
    *
-   * Hunt for (Phase 1): three-step check — not found / revoked / expired.
-   * Each condition has its own rejection reason. A revoked token (logged out)
-   * is explicitly detected and rejected, blocking replay attacks.
-   */
-  /**
-   * Validate the refresh token and issue new credentials.
+   * Grace period: when a token has been revoked by rotation (not by logout)
+   * and the reuse happens within GRACE_PERIOD_MS, we follow the
+   * `replacedByHash` chain to the current live token and return a fresh
+   * access token from it — instead of rejecting. This handles the race
+   * condition where parallel requests (e.g. Next.js middleware + RSC) both
+   * present the same token and the second arrives after the first rotated it.
    *
-   * @param rotate — when true (default), revokes the old refresh token and
-   *   issues a new one (full rotation). When false, only issues a new access
-   *   token and returns the SAME refresh token back without rotation.
-   *
-   *   rotate=false is used by the Next.js middleware which may fire multiple
-   *   parallel RSC requests per navigation — rotating on each would revoke
-   *   the token before the second request arrives. Client-side BFF refresh
-   *   still uses rotate=true for proper security rotation.
+   * If a revoked token is reused OUTSIDE the grace period, it is treated as
+   * a potential token theft — the entire family could be revoked in a
+   * production system, but here we simply reject with "Token has been revoked".
    *
    * Hunt for (Phase 1): three-step check — not found / revoked / expired.
    */
-  async refresh(rawRefreshToken: string, rotate = true): Promise<AuthResult> {
+  async refresh(rawRefreshToken: string): Promise<AuthResult> {
     const tokenHash = this.hashToken(rawRefreshToken);
 
     const stored = await this.prisma.refreshToken.findUnique({
@@ -113,11 +114,13 @@ export class AuthService {
     if (!stored) {
       throw new UnauthorizedException('Invalid refresh token');
     }
-    if (stored.revokedAt) {
-      throw new UnauthorizedException('Token has been revoked');
-    }
+
     if (stored.expiresAt < new Date()) {
       throw new UnauthorizedException('Token expired');
+    }
+
+    if (stored.revokedAt) {
+      return this.handleRevokedToken(stored);
     }
 
     const user = await this.prisma.user.findUnique({
@@ -129,27 +132,18 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
 
-    if (rotate) {
-      // Revoke old token, issue a completely new pair
-      await this.prisma.refreshToken.update({
-        where: { id: stored.id },
-        data: { revokedAt: new Date() },
-      });
+    // Revoke old token, issue a completely new pair, link them
+    const tokens = await this.issueTokens(user.id, user.email);
 
-      const tokens = await this.issueTokens(user.id, user.email);
-      return { ...tokens, user };
-    }
-
-    // No rotation: issue a fresh access token, return the same refresh token
-    const accessToken = this.jwt.sign(
-      { sub: user.id, email: user.email },
-      {
-        secret: this.config.get<string>('jwt.accessSecret'),
-        expiresIn: this.config.get<string>('jwt.accessExpiresIn') as `${number}m`,
+    await this.prisma.refreshToken.update({
+      where: { id: stored.id },
+      data: {
+        revokedAt: new Date(),
+        replacedByHash: this.hashToken(tokens.refreshToken),
       },
-    );
+    });
 
-    return { accessToken, refreshToken: rawRefreshToken, user };
+    return { ...tokens, user };
   }
 
   async logout(rawRefreshToken: string): Promise<void> {
@@ -163,6 +157,73 @@ export class AuthService {
   }
 
   // ── private helpers ──
+
+  /**
+   * Handle a revoked refresh token: if it was revoked by rotation (has
+   * replacedByHash) within the grace period, follow the chain and issue
+   * a fresh access token from the replacement. Otherwise reject.
+   */
+  private async handleRevokedToken(stored: {
+    id: string;
+    revokedAt: Date | null;
+    replacedByHash: string | null;
+    userId: string;
+  }): Promise<AuthResult> {
+    const revokedAt = stored.revokedAt!;
+    const elapsed = Date.now() - revokedAt.getTime();
+
+    // Outside grace period or no replacement chain → reject
+    if (elapsed > GRACE_PERIOD_MS || !stored.replacedByHash) {
+      throw new UnauthorizedException('Token has been revoked');
+    }
+
+    // Follow the replacement chain (max 5 hops to prevent infinite loops)
+    let replacement = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash: stored.replacedByHash },
+    });
+
+    for (let hops = 0; hops < 5 && replacement?.replacedByHash; hops++) {
+      replacement = await this.prisma.refreshToken.findUnique({
+        where: { tokenHash: replacement.replacedByHash },
+      });
+    }
+
+    if (!replacement || replacement.revokedAt || replacement.expiresAt < new Date()) {
+      throw new UnauthorizedException('Token has been revoked');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: replacement.userId },
+      select: { id: true, email: true, name: true },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    // Issue a fresh access token; the replacement refresh token is still live
+    const accessToken = this.jwt.sign(
+      { sub: user.id, email: user.email },
+      {
+        secret: this.config.get<string>('jwt.accessSecret'),
+        expiresIn: this.config.get<string>(
+          'jwt.accessExpiresIn',
+        ) as `${number}m`,
+      },
+    );
+
+    // Return the raw replacement token? No — the caller doesn't know it.
+    // Instead, return the replacement's hash as a sentinel; the caller
+    // will get a fresh access token, which is what matters. The refresh
+    // token in the response won't be usable for another rotation, but the
+    // caller (middleware) only needs the access token anyway.
+    //
+    // Trade-off: we return an empty string for refreshToken here because
+    // the grace period consumer (middleware) only cares about accessToken.
+    // The BFF client-side refresh path always gets a fresh token pair from
+    // a non-revoked token, so this path is only hit by middleware.
+    return { accessToken, refreshToken: '', user };
+  }
 
   /**
    * Issue an access token (JWT) + refresh token (random hex).
