@@ -68,10 +68,11 @@ export class TasksController {
     summary: 'Reorder task — move to new position/column (transactional)',
   })
   reorder(
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ReorderTaskDto,
   ) {
-    return this.tasksService.reorder(id, dto);
+    return this.tasksService.reorder(workspaceId, id, dto);
   }
 
   @Delete(':id')

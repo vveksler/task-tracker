@@ -247,6 +247,33 @@ that polls `nc -z postgres 5432` every 2 seconds. The main container only
 starts after Postgres accepts TCP connections. This is one of the most
 common real-world K8s problems — not contrived.
 
+## Bugs found during development
+
+Real bugs discovered during development — not contrived "Hunt for" exercises
+but genuine mistakes caught through manual testing and code review.
+
+### IDOR in task reorder endpoint
+
+**How I found it:** While testing the API in Postman, I noticed that
+`PATCH /workspaces/:workspaceId/tasks/:id/reorder` accepted any `taskId`
+regardless of which workspace was in the URL. A user could reorder tasks
+belonging to another workspace by simply knowing the task UUID.
+
+**Root cause:** Every other task method (`findOne`, `update`, `remove`) had
+a `task.project.workspaceId !== workspaceId` check, but `reorder` was written
+separately (with its own transactional flow) and the ownership check was
+never added. The controller didn't even pass `workspaceId` to the service.
+
+**Fix:** Added `workspaceId` parameter to `reorder` → `reorderInTransaction`,
+included `project: { select: { workspaceId: true } }` in the task lookup
+inside the Serializable transaction, and added the same `ForbiddenException`
+guard. Added a dedicated IDOR unit test that was missing.
+
+**Takeaway:** IDOR bugs hide in endpoints that were implemented at a different
+time or by a different flow path. A shared `validateTaskOwnership` helper
+would have prevented this — DRY isn't just about saving lines, it's about
+ensuring security checks can't be forgotten.
+
 ## License
 
 MIT

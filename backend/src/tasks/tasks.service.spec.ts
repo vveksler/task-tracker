@@ -150,7 +150,11 @@ describe('TasksService', () => {
       );
 
       prisma.task.findUnique
-        .mockResolvedValueOnce({ id: taskId, projectId })
+        .mockResolvedValueOnce({
+          id: taskId,
+          projectId,
+          project: { workspaceId },
+        })
         .mockResolvedValueOnce({ order: 2.0 })
         .mockResolvedValueOnce({ order: 4.0 });
 
@@ -168,7 +172,7 @@ describe('TasksService', () => {
         }),
       );
 
-      const result = await service.reorder(taskId, {
+      const result = await service.reorder(workspaceId, taskId, {
         status: TaskStatus.IN_PROGRESS,
         afterTaskId: 'after-uuid',
         beforeTaskId: 'before-uuid',
@@ -191,6 +195,7 @@ describe('TasksService', () => {
       prisma.task.findUnique.mockResolvedValueOnce({
         id: taskId,
         projectId,
+        project: { workspaceId },
       });
       prisma.task.findFirst.mockResolvedValue({ order: 5.0 });
       prisma.task.update.mockResolvedValue(
@@ -207,11 +212,29 @@ describe('TasksService', () => {
         }),
       );
 
-      const result = await service.reorder(taskId, {
+      const result = await service.reorder(workspaceId, taskId, {
         status: TaskStatus.TODO,
       });
 
       expect(result.order).toBe(6.0);
+    });
+
+    it('should throw ForbiddenException when task belongs to another workspace (IDOR)', async () => {
+      prisma.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
+      );
+
+      prisma.task.findUnique.mockResolvedValueOnce({
+        id: taskId,
+        projectId,
+        project: { workspaceId: 'other-workspace' },
+      });
+
+      await expect(
+        service.reorder(workspaceId, taskId, { status: TaskStatus.TODO }),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(prisma.task.update).not.toHaveBeenCalled();
     });
 
     /**
@@ -233,7 +256,7 @@ describe('TasksService', () => {
         .mockRejectedValueOnce(serializationError);
 
       await expect(
-        service.reorder(taskId, { status: TaskStatus.TODO }),
+        service.reorder(workspaceId, taskId, { status: TaskStatus.TODO }),
       ).rejects.toThrow(BadRequestException);
 
       expect(prisma.$transaction).toHaveBeenCalledTimes(2);
@@ -254,6 +277,7 @@ describe('TasksService', () => {
       prisma.task.findUnique.mockResolvedValueOnce({
         id: taskId,
         projectId,
+        project: { workspaceId },
       });
       prisma.task.findFirst.mockResolvedValue({ order: 1.0 });
       prisma.task.update.mockResolvedValue(
@@ -270,7 +294,7 @@ describe('TasksService', () => {
         }),
       );
 
-      const result = await service.reorder(taskId, {
+      const result = await service.reorder(workspaceId, taskId, {
         status: TaskStatus.TODO,
       });
 
@@ -282,7 +306,7 @@ describe('TasksService', () => {
       prisma.$transaction.mockRejectedValue(new Error('DB is down'));
 
       await expect(
-        service.reorder(taskId, { status: TaskStatus.TODO }),
+        service.reorder(workspaceId, taskId, { status: TaskStatus.TODO }),
       ).rejects.toThrow('DB is down');
 
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
