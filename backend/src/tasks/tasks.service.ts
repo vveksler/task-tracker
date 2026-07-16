@@ -221,13 +221,13 @@ export class TasksService {
    * locking with a version column, but fractional indexing + serializable
    * transaction is simpler to implement and explain.
    */
-  async reorder(taskId: string, dto: ReorderTaskDto) {
+  async reorder(workspaceId: string, taskId: string, dto: ReorderTaskDto) {
     const MAX_RETRIES = 2;
     let attempt = 0;
 
     while (attempt < MAX_RETRIES) {
       try {
-        return await this.reorderInTransaction(taskId, dto);
+        return await this.reorderInTransaction(workspaceId, taskId, dto);
       } catch (error) {
         // P2034 = Prisma serialization failure (concurrent transaction conflict)
         if (
@@ -249,16 +249,30 @@ export class TasksService {
     throw new BadRequestException('Reorder failed after retries');
   }
 
-  private async reorderInTransaction(taskId: string, dto: ReorderTaskDto) {
+  private async reorderInTransaction(
+    workspaceId: string,
+    taskId: string,
+    dto: ReorderTaskDto,
+  ) {
     const moved = await this.prisma.$transaction(
       async (tx) => {
         const task = await tx.task.findUnique({
           where: { id: taskId },
-          select: { id: true, projectId: true },
+          select: {
+            id: true,
+            projectId: true,
+            project: { select: { workspaceId: true } },
+          },
         });
 
         if (!task) {
           throw new NotFoundException('Task not found');
+        }
+
+        if (task.project.workspaceId !== workspaceId) {
+          throw new ForbiddenException(
+            'Task does not belong to this workspace',
+          );
         }
 
         let newOrder: number;
