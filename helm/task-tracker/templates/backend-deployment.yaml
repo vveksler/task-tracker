@@ -16,9 +16,11 @@ spec:
       labels:
         {{- include "task-tracker.selectorLabels" (dict "component" "backend") | nindent 8 }}
     spec:
-      # Hunt for (Phase 8): without this init container the backend would
-      # crash-loop trying to connect to Postgres before it's ready.
-      # This is one of the most common real-world K8s startup problems.
+      # Two-phase init: first wait for Postgres TCP, then verify the schema
+      # exists (i.e. migrations have completed). Without the second check,
+      # the backend could become Ready and receive traffic before the
+      # migrate-job (post-install hook) finishes — causing "relation does
+      # not exist" errors on first deploy to a clean cluster.
       initContainers:
         - name: wait-for-postgres
           image: busybox:1.36
@@ -26,11 +28,30 @@ spec:
             - sh
             - -c
             - |
-              echo "Waiting for postgres:5432..."
+              echo "Waiting for postgres TCP..."
               until nc -z postgres 5432; do
                 sleep 2
               done
-              echo "Postgres is ready"
+              echo "Postgres TCP is ready"
+        - name: wait-for-migrations
+          image: {{ .Values.backend.image }}
+          imagePullPolicy: {{ .Values.backend.imagePullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for migrations (checking _prisma_migrations table)..."
+              until npx prisma migrate status 2>&1 | grep -q "Database schema is up to date"; do
+                echo "Schema not ready yet, waiting..."
+                sleep 3
+              done
+              echo "Migrations are complete"
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: task-tracker-secret
+                  key: DATABASE_URL
       containers:
         - name: backend
           image: {{ .Values.backend.image }}

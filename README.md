@@ -247,6 +247,23 @@ that polls `nc -z postgres 5432` every 2 seconds. The main container only
 starts after Postgres accepts TCP connections. This is one of the most
 common real-world K8s problems — not contrived.
 
+### Phase 8 (deeper) — Backend serves traffic before migrations complete
+
+**Problem:** On first deploy to a clean cluster, the migrate-job runs as a
+`post-install` Helm hook while the backend Deployment is already creating
+pods. The backend init-container only checks TCP port (`nc -z postgres 5432`),
+which opens as soon as Postgres starts — before the schema exists. The
+readiness probe (`/health/ready`) does `SELECT 1`, which also succeeds on
+an empty database. Result: backend pods become Ready and start receiving
+traffic before migrations finish, causing `relation "workspaces" does not
+exist` errors.
+
+**Fix:** Added a second init-container `wait-for-migrations` that runs
+`prisma migrate status` in a loop and waits until it reports "Database schema
+is up to date." The backend's main container only starts after both Postgres
+TCP connectivity AND schema readiness are confirmed. This is a deeper version
+of the same class of problem — TCP port open ≠ schema exists.
+
 ## Bugs found during development
 
 Real bugs discovered during development — not contrived "Hunt for" exercises
