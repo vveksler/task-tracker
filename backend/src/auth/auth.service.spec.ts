@@ -35,6 +35,7 @@ describe('AuthService', () => {
       findUnique: jest.Mock;
       update: jest.Mock;
       updateMany: jest.Mock;
+      deleteMany: jest.Mock;
     };
   };
 
@@ -49,6 +50,7 @@ describe('AuthService', () => {
         findUnique: jest.fn(),
         update: jest.fn(),
         updateMany: jest.fn(),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
     };
 

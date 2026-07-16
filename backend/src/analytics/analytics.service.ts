@@ -66,13 +66,6 @@ export class AnalyticsService {
     const rows = await this.prisma.$queryRaw<
       { date: Date; created: bigint; updated: bigint }[]
     >`
-      WITH workspace_tasks AS (
-        SELECT t."createdAt", t."updatedAt"
-        FROM tasks t
-        JOIN projects p ON t."projectId" = p.id
-        WHERE p."workspaceId" = ${workspaceId}
-          AND t."createdAt" >= NOW() - (${days} || ' days')::interval
-      )
       SELECT
         d.date,
         COALESCE(c.cnt, 0) AS created,
@@ -83,14 +76,20 @@ export class AnalyticsService {
         '1 day'::interval
       ) AS d(date)
       LEFT JOIN (
-        SELECT date_trunc('day', "createdAt") AS day, COUNT(*) AS cnt
-        FROM workspace_tasks
+        SELECT date_trunc('day', t."createdAt") AS day, COUNT(*) AS cnt
+        FROM tasks t
+        JOIN projects p ON t."projectId" = p.id
+        WHERE p."workspaceId" = ${workspaceId}
+          AND t."createdAt" >= NOW() - (${days} || ' days')::interval
         GROUP BY day
       ) c ON c.day = d.date
       LEFT JOIN (
-        SELECT date_trunc('day', "updatedAt") AS day, COUNT(*) AS cnt
-        FROM workspace_tasks
-        WHERE "updatedAt" != "createdAt"
+        SELECT date_trunc('day', t."updatedAt") AS day, COUNT(*) AS cnt
+        FROM tasks t
+        JOIN projects p ON t."projectId" = p.id
+        WHERE p."workspaceId" = ${workspaceId}
+          AND t."updatedAt" >= NOW() - (${days} || ' days')::interval
+          AND t."updatedAt" != t."createdAt"
         GROUP BY day
       ) u ON u.day = d.date
       ORDER BY d.date

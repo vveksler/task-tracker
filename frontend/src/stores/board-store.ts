@@ -49,6 +49,9 @@ interface BoardState {
   clearError: () => void;
 }
 
+// Serial queue for reorder operations to prevent overlapping rollback conflicts
+let reorderQueue: Promise<void> = Promise.resolve();
+
 export const useBoardStore = create<BoardState>((set, get) => ({
   tasks: [],
   isLoading: false,
@@ -93,7 +96,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     // Snapshot before optimistic update
     const snapshot = get().tasks;
 
-    // Optimistic: move the task to new position in local state
+    // Optimistic: move the task to new position synchronously
     const task = snapshot.find((t) => t.id === taskId);
     if (!task) return;
 
@@ -126,28 +129,36 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
     set({ tasks: [...otherTasks, optimisticTask], error: null });
 
-    try {
-      await apiFetch<Task>(
-        `/workspaces/${workspaceId}/tasks/${taskId}/reorder`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({
-            status: newStatus,
-            afterTaskId: afterTaskId ?? undefined,
-            beforeTaskId: beforeTaskId ?? undefined,
-          }),
-        },
-      );
-    } catch (err) {
-      // HUNT FOR (Phase 5): rollback on failure
-      set({
-        tasks: snapshot,
-        error:
-          err instanceof ApiError
-            ? `Move failed: ${err.message}`
-            : 'Move failed — card returned to original position',
-      });
-    }
+    // Queue the API call serially to prevent overlapping rollback conflicts:
+    // if two drags happen before the first API call resolves, the second
+    // snapshot already captures the first's optimistic state.
+    const apiCall = async () => {
+      try {
+        await apiFetch<Task>(
+          `/workspaces/${workspaceId}/tasks/${taskId}/reorder`,
+          {
+            method: 'PATCH',
+            body: JSON.stringify({
+              status: newStatus,
+              afterTaskId: afterTaskId ?? undefined,
+              beforeTaskId: beforeTaskId ?? undefined,
+            }),
+          },
+        );
+      } catch (err) {
+        // HUNT FOR (Phase 5): rollback on failure
+        set({
+          tasks: snapshot,
+          error:
+            err instanceof ApiError
+              ? `Move failed: ${err.message}`
+              : 'Move failed — card returned to original position',
+        });
+      }
+    };
+
+    reorderQueue = reorderQueue.then(apiCall, apiCall);
+    return reorderQueue;
   },
 
   createTask: async (workspaceId, projectId, title, status) => {

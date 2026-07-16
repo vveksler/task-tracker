@@ -82,6 +82,27 @@ export class AuthService {
     }
 
     const tokens = await this.issueTokens(user.id, user.email);
+
+    // Opportunistic cleanup: delete expired or old revoked tokens
+    // to prevent unbounded table growth.
+    this.prisma.refreshToken
+      .deleteMany({
+        where: {
+          userId: user.id,
+          OR: [
+            { expiresAt: { lt: new Date() } },
+            {
+              revokedAt: {
+                lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+              },
+            },
+          ],
+        },
+      })
+      .catch(() => {
+        /* best-effort cleanup — never block login */
+      });
+
     return {
       ...tokens,
       user: { id: user.id, email: user.email, name: user.name },

@@ -14,7 +14,8 @@ const workspaceId = 'ws-uuid';
 
 describe('WorkspacesService', () => {
   let service: WorkspacesService;
-  let prisma: Record<string, Record<string, jest.Mock>>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let prisma: Record<string, any>;
 
   beforeEach(async () => {
     prisma = {
@@ -31,9 +32,13 @@ describe('WorkspacesService', () => {
         create: jest.fn(),
         delete: jest.fn(),
       },
+      task: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
       user: {
         findUnique: jest.fn(),
       },
+      $transaction: jest.fn().mockImplementation((ops: unknown[]) => Promise.all(ops)),
     };
 
     const module: TestingModule = await Test.createTestingModule({
