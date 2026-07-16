@@ -52,7 +52,7 @@ phase includes a deliberately hunted edge case (see [Engineering notes](#enginee
 ## Getting started
 
 ### Prerequisites
-- Node.js 20+
+- Node.js 24+
 - Docker Desktop
 
 ### Option 1: Docker Compose (quickest)
@@ -290,6 +290,36 @@ guard. Added a dedicated IDOR unit test that was missing.
 time or by a different flow path. A shared `validateTaskOwnership` helper
 would have prevented this — DRY isn't just about saving lines, it's about
 ensuring security checks can't be forgotten.
+
+### Cross-project task events leaking onto the wrong board
+
+**How I found it:** Opened two projects in the same workspace in two browser
+tabs and created a task in one. It briefly appeared on the other project's
+board too, grouped into a column by its status even though it belonged to a
+different project entirely.
+
+**Root cause:** The WebSocket gateway broadcasts task events to a
+`workspace:{id}` room, not scoped per project — every member connected to any
+project within that workspace receives every task event for the whole
+workspace. The frontend's socket handlers (`task:created`, `task:updated`,
+`task:moved`, `task:deleted`, `board:sync`) applied every incoming event to
+the board store unconditionally, with no check that the event actually
+belonged to the project currently being viewed.
+
+**Fix:** Added a `projectId` guard clause to all five socket event handlers
+in `kanban-board.tsx` — each handler now ignores events whose `projectId`
+doesn't match the board currently open. This is the pragmatic fix; the more
+thorough version would scope the server-side room itself to
+`workspace:{id}:project:{id}`, which would also cut down on unnecessary
+network traffic to clients viewing unrelated projects — noted as a possible
+follow-up.
+
+**Takeaway:** Not every bug found this way is a security hole — this one was
+purely a data-correctness bug, since all workspace members already have
+legitimate REST access to every project in it. But it's exactly the kind of
+thing that only shows up when you actually use the app the way a real user
+would (two tabs, two projects, real-time), not from reading the code in
+isolation.
 
 ## License
 
