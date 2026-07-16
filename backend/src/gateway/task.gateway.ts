@@ -175,6 +175,16 @@ export class TaskGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(`workspace:${workspaceId}`).emit('task:deleted', event);
   }
 
+  /** Emit delete events for all tasks before a cascade delete. */
+  emitBulkTasksDeleted(
+    workspaceId: string,
+    tasks: { id: string; projectId: string }[],
+  ): void {
+    for (const task of tasks) {
+      this.emitTaskDeleted(workspaceId, task.id, task.projectId);
+    }
+  }
+
   private toTaskPayload(task: {
     id: string;
     title: string;

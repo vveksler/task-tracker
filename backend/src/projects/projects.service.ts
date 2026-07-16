@@ -1,15 +1,21 @@
 import {
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { TaskGateway } from '../gateway/task.gateway';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 
 @Injectable()
 export class ProjectsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() @Inject(TaskGateway) private readonly gateway?: TaskGateway,
+  ) {}
 
   async create(workspaceId: string, dto: CreateProjectDto) {
     const workspace = await this.prisma.workspace.findUnique({
@@ -107,6 +113,15 @@ export class ProjectsService {
       throw new ForbiddenException(
         'Project does not belong to this workspace',
       );
+    }
+
+    // Emit WS delete events for all tasks before cascade delete
+    if (this.gateway) {
+      const tasks = await this.prisma.task.findMany({
+        where: { projectId },
+        select: { id: true, projectId: true },
+      });
+      this.gateway.emitBulkTasksDeleted(workspaceId, tasks);
     }
 
     await this.prisma.project.delete({ where: { id: projectId } });

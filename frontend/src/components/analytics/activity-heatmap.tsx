@@ -34,7 +34,7 @@ export const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({ data }) => {
     const marginTop = 20;
     const marginLeft = 30;
 
-    const dates = data.map((d) => new Date(d.date + 'T00:00:00'));
+    const dates = data.map((d) => new Date(d.date + 'T00:00:00Z'));
     const minDate = d3.min(dates)!;
     const maxDate = d3.max(dates)!;
 
@@ -42,7 +42,7 @@ export const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({ data }) => {
     const d = new Date(minDate);
     while (d <= maxDate) {
       allDays.push(new Date(d));
-      d.setDate(d.getDate() + 1);
+      d.setUTCDate(d.getUTCDate() + 1);
     }
 
     const maxCount = d3.max(data, (d) => d.created + d.updated) ?? 1;
@@ -52,9 +52,9 @@ export const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({ data }) => {
       .domain([0, maxCount]);
 
     const weekOfDate = (date: Date) => {
-      const startWeek = d3.timeWeek.count(d3.timeYear(minDate), minDate);
-      const dateWeek = d3.timeWeek.count(d3.timeYear(date), date);
-      const yearDiff = date.getFullYear() - minDate.getFullYear();
+      const startWeek = d3.utcWeek.count(d3.utcYear(minDate), minDate);
+      const dateWeek = d3.utcWeek.count(d3.utcYear(date), date);
+      const yearDiff = date.getUTCFullYear() - minDate.getUTCFullYear();
       return dateWeek - startWeek + yearDiff * 52;
     };
 
@@ -83,7 +83,7 @@ export const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({ data }) => {
       .text((d) => d);
 
     // Month labels
-    const months = d3.timeMonths(minDate, maxDate);
+    const months = d3.utcMonths(minDate, maxDate);
     svg
       .selectAll('.month-label')
       .data(months)
@@ -120,7 +120,7 @@ export const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({ data }) => {
       .join('rect')
       .attr('class', 'cell')
       .attr('x', (d) => marginLeft + weekOfDate(d) * step)
-      .attr('y', (d) => marginTop + d.getDay() * step)
+      .attr('y', (d) => marginTop + d.getUTCDay() * step)
       .attr('width', cellSize)
       .attr('height', cellSize)
       .attr('rx', 2)

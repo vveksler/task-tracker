@@ -1,18 +1,24 @@
 import {
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { WorkspaceRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { TaskGateway } from '../gateway/task.gateway';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto';
 import { AddMemberDto } from './dto/add-member.dto';
 
 @Injectable()
 export class WorkspacesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() @Inject(TaskGateway) private readonly gateway?: TaskGateway,
+  ) {}
 
   async create(dto: CreateWorkspaceDto, userId: string) {
     return this.prisma.workspace.create({
@@ -86,6 +92,15 @@ export class WorkspacesService {
   }
 
   async remove(workspaceId: string) {
+    // Emit WS delete events for all tasks before cascade delete
+    if (this.gateway) {
+      const tasks = await this.prisma.task.findMany({
+        where: { project: { workspaceId } },
+        select: { id: true, projectId: true },
+      });
+      this.gateway.emitBulkTasksDeleted(workspaceId, tasks);
+    }
+
     await this.prisma.workspace.delete({
       where: { id: workspaceId },
     });
@@ -156,11 +171,22 @@ export class WorkspacesService {
       throw new ForbiddenException('Cannot remove the workspace owner');
     }
 
-    await this.prisma.workspaceMember.delete({
-      where: {
-        userId_workspaceId: { userId: targetUserId, workspaceId },
-      },
-    });
+    // Clear assigneeId on tasks assigned to the removed member, then
+    // delete membership in a single transaction for consistency.
+    await this.prisma.$transaction([
+      this.prisma.task.updateMany({
+        where: {
+          assigneeId: targetUserId,
+          project: { workspaceId },
+        },
+        data: { assigneeId: null },
+      }),
+      this.prisma.workspaceMember.delete({
+        where: {
+          userId_workspaceId: { userId: targetUserId, workspaceId },
+        },
+      }),
+    ]);
   }
 
   async getMembers(workspaceId: string) {

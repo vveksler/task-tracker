@@ -78,6 +78,10 @@ describe('TasksService', () => {
         id: projectId,
         workspaceId,
       });
+      // create now runs inside $transaction — mock passes through to prisma
+      prisma.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
+      );
       prisma.task.findFirst.mockResolvedValue({ order: 3 });
       prisma.task.create.mockResolvedValue(
         withProject({
@@ -155,8 +159,8 @@ describe('TasksService', () => {
           projectId,
           project: { workspaceId },
         })
-        .mockResolvedValueOnce({ order: 2.0 })
-        .mockResolvedValueOnce({ order: 4.0 });
+        .mockResolvedValueOnce({ order: 2.0, projectId, status: TaskStatus.IN_PROGRESS })
+        .mockResolvedValueOnce({ order: 4.0, projectId, status: TaskStatus.IN_PROGRESS });
 
       prisma.task.update.mockResolvedValue(
         withProject({
@@ -310,6 +314,121 @@ describe('TasksService', () => {
       ).rejects.toThrow('DB is down');
 
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('should throw BadRequestException for invalid anchor task (deleted or wrong project)', async () => {
+      prisma.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
+      );
+
+      prisma.task.findUnique
+        .mockResolvedValueOnce({
+          id: taskId,
+          projectId,
+          project: { workspaceId },
+        })
+        .mockResolvedValueOnce(null);
+
+      await expect(
+        service.reorder(workspaceId, taskId, {
+          status: TaskStatus.TODO,
+          afterTaskId: 'deleted-task-id',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('update', () => {
+    it('should auto-append to bottom of new column when status changes', async () => {
+      prisma.task.findUnique.mockResolvedValue({
+        id: taskId,
+        status: TaskStatus.TODO,
+        projectId,
+        project: { workspaceId },
+      });
+      prisma.task.findFirst.mockResolvedValue({ order: 5.0 });
+      prisma.task.update.mockResolvedValue(
+        withProject({
+          id: taskId,
+          title: 'T',
+          description: null,
+          status: TaskStatus.DONE,
+          order: 6.0,
+          projectId,
+          assigneeId: null,
+          createdAt: new Date('2026-01-01'),
+          updatedAt: new Date('2026-01-01'),
+        }),
+      );
+
+      await service.update(workspaceId, taskId, {
+        status: TaskStatus.DONE,
+      });
+
+      const updateCall = prisma.task.update.mock.calls[0]![0]!;
+      expect(updateCall.data.order).toBe(6.0);
+    });
+
+    it('should not change order when status stays the same', async () => {
+      prisma.task.findUnique.mockResolvedValue({
+        id: taskId,
+        status: TaskStatus.TODO,
+        projectId,
+        project: { workspaceId },
+      });
+      prisma.task.update.mockResolvedValue(
+        withProject({
+          id: taskId,
+          title: 'Updated',
+          description: null,
+          status: TaskStatus.TODO,
+          order: 3.0,
+          projectId,
+          assigneeId: null,
+          createdAt: new Date('2026-01-01'),
+          updatedAt: new Date('2026-01-01'),
+        }),
+      );
+
+      await service.update(workspaceId, taskId, {
+        title: 'Updated',
+      });
+
+      const updateCall = prisma.task.update.mock.calls[0]![0]!;
+      expect(updateCall.data.order).toBeUndefined();
+    });
+  });
+
+  describe('create (concurrency)', () => {
+    it('should use Serializable transaction to prevent duplicate order values', async () => {
+      prisma.project.findUnique.mockResolvedValue({
+        id: projectId,
+        workspaceId,
+      });
+      prisma.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
+      );
+      prisma.task.findFirst.mockResolvedValue({ order: 5 });
+      prisma.task.create.mockResolvedValue(
+        withProject({
+          id: 'new-id',
+          title: 'T',
+          order: 6,
+          status: TaskStatus.TODO,
+          description: null,
+          projectId,
+          assigneeId: null,
+          createdAt: new Date('2026-01-01'),
+          updatedAt: new Date('2026-01-01'),
+        }),
+      );
+
+      await service.create(workspaceId, { title: 'T', projectId });
+
+      expect(prisma.$transaction).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({ isolationLevel: 'Serializable' }),
+      );
     });
   });
 });

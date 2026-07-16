@@ -63,7 +63,12 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   } = useBoardStore();
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+
+  // Derive selectedTask from the store so WS updates are reflected in the modal
+  const selectedTask = selectedTaskId
+    ? tasks.find((t) => t.id === selectedTaskId) ?? null
+    : null;
 
   // Local column state used during drag for live preview.
   // Mirrors the store when not dragging; mutated on dragOver for visual feedback.
@@ -96,22 +101,27 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     socket.emit('workspace:join', { workspaceId, projectId });
 
     socket.on('board:sync', (event: BoardSyncEvent) => {
+      if (event.projectId !== projectId) return;
       storeRef.current.syncTasks(event.tasks);
     });
 
     socket.on('task:created', (event: TaskCreatedEvent) => {
+      if (event.task.projectId !== projectId) return;
       storeRef.current.addTask(event.task);
     });
 
     socket.on('task:updated', (event: TaskUpdatedEvent) => {
+      if (event.task.projectId !== projectId) return;
       storeRef.current.updateTask(event.task);
     });
 
     socket.on('task:moved', (event: TaskMovedEvent) => {
+      if (event.task.projectId !== projectId) return;
       storeRef.current.updateTask(event.task);
     });
 
     socket.on('task:deleted', (event: TaskDeletedEvent) => {
+      if (event.projectId !== projectId) return;
       storeRef.current.removeTask(event.taskId);
     });
 
@@ -317,7 +327,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               tasks={columns[status]}
               workspaceId={workspaceId}
               projectId={projectId}
-              onTaskClick={(task) => setSelectedTask(task)}
+              onTaskClick={(task) => setSelectedTaskId(task.id)}
             />
           ))}
         </div>
@@ -331,7 +341,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         <TaskModal
           task={selectedTask}
           workspaceId={workspaceId}
-          onClose={() => setSelectedTask(null)}
+          onClose={() => setSelectedTaskId(null)}
         />
       )}
     </div>

@@ -6,7 +6,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, TaskStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TaskGateway } from '../gateway/task.gateway';
 import type { TaskPayload } from '../gateway/gateway.events';
@@ -54,25 +54,33 @@ export class TasksService {
       await this.validateAssignee(workspaceId, dto.assigneeId);
     }
 
-    const lastTask = await this.prisma.task.findFirst({
-      where: { projectId: dto.projectId, status: dto.status ?? 'TODO' },
-      orderBy: { order: 'desc' },
-      select: { order: true },
-    });
+    // Wrap read+insert in a Serializable transaction to prevent two
+    // concurrent creates from reading the same max order and both
+    // inserting the same value.
+    const created = await this.prisma.$transaction(
+      async (tx) => {
+        const lastTask = await tx.task.findFirst({
+          where: { projectId: dto.projectId, status: dto.status ?? 'TODO' },
+          orderBy: { order: 'desc' },
+          select: { order: true },
+        });
 
-    const order = (lastTask?.order ?? 0) + 1;
+        const order = (lastTask?.order ?? 0) + 1;
 
-    const created = await this.prisma.task.create({
-      data: {
-        title: dto.title,
-        description: dto.description,
-        status: dto.status,
-        order,
-        projectId: dto.projectId,
-        assigneeId: dto.assigneeId,
+        return tx.task.create({
+          data: {
+            title: dto.title,
+            description: dto.description,
+            status: dto.status,
+            order,
+            projectId: dto.projectId,
+            assigneeId: dto.assigneeId,
+          },
+          select: TASK_SELECT,
+        });
       },
-      select: TASK_SELECT,
-    });
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
 
     this.emit('created', created);
     return created;
@@ -123,7 +131,12 @@ export class TasksService {
   async update(workspaceId: string, taskId: string, dto: UpdateTaskDto) {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
-      select: { id: true, project: { select: { workspaceId: true } } },
+      select: {
+        id: true,
+        status: true,
+        projectId: true,
+        project: { select: { workspaceId: true } },
+      },
     });
 
     if (!task) {
@@ -140,6 +153,18 @@ export class TasksService {
       await this.validateAssignee(workspaceId, dto.assigneeId);
     }
 
+    // When status changes, auto-append to the bottom of the new column
+    // to avoid the task landing at a nonsensical order position.
+    let order: number | undefined;
+    if (dto.status && dto.status !== task.status) {
+      const lastInColumn = await this.prisma.task.findFirst({
+        where: { projectId: task.projectId, status: dto.status },
+        orderBy: { order: 'desc' },
+        select: { order: true },
+      });
+      order = (lastInColumn?.order ?? 0) + 1;
+    }
+
     const updated = await this.prisma.task.update({
       where: { id: taskId },
       data: {
@@ -147,6 +172,7 @@ export class TasksService {
         description: dto.description,
         status: dto.status,
         assigneeId: dto.assigneeId,
+        ...(order !== undefined && { order }),
       },
       select: TASK_SELECT,
     });
@@ -313,26 +339,43 @@ export class TasksService {
     projectId: string,
     dto: ReorderTaskDto,
   ): Promise<number> {
-    const afterOrder = dto.afterTaskId
-      ? (
-          await tx.task.findUnique({
-            where: { id: dto.afterTaskId },
-            select: { order: true },
-          })
-        )?.order
-      : undefined;
+    let afterOrder: number | undefined;
+    let beforeOrder: number | undefined;
 
-    const beforeOrder = dto.beforeTaskId
-      ? (
-          await tx.task.findUnique({
-            where: { id: dto.beforeTaskId },
-            select: { order: true },
-          })
-        )?.order
-      : undefined;
+    if (dto.afterTaskId) {
+      const anchor = await tx.task.findUnique({
+        where: { id: dto.afterTaskId },
+        select: { order: true, projectId: true, status: true },
+      });
+      if (!anchor || anchor.projectId !== projectId) {
+        throw new BadRequestException('Invalid afterTaskId — anchor task not found in this project');
+      }
+      afterOrder = anchor.order;
+    }
+
+    if (dto.beforeTaskId) {
+      const anchor = await tx.task.findUnique({
+        where: { id: dto.beforeTaskId },
+        select: { order: true, projectId: true, status: true },
+      });
+      if (!anchor || anchor.projectId !== projectId) {
+        throw new BadRequestException('Invalid beforeTaskId — anchor task not found in this project');
+      }
+      beforeOrder = anchor.order;
+    }
 
     if (afterOrder !== undefined && beforeOrder !== undefined) {
-      return (afterOrder + beforeOrder) / 2;
+      const midpoint = (afterOrder + beforeOrder) / 2;
+      // M3: precision exhaustion — if midpoint collapsed to an endpoint,
+      // rebalance the entire column before computing position.
+      if (midpoint === afterOrder || midpoint === beforeOrder) {
+        await this.rebalanceColumn(tx, projectId, dto.status);
+        return this.computeOrder(tx, projectId, {
+          ...dto,
+          // Clear explicit order to re-derive from fresh values
+        });
+      }
+      return midpoint;
     }
     if (afterOrder !== undefined) {
       return afterOrder + 1;
@@ -349,6 +392,29 @@ export class TasksService {
     });
 
     return (last?.order ?? 0) + 1;
+  }
+
+  /**
+   * Rebalance all tasks in a column to integer order values (1, 2, 3, ...).
+   * Called when fractional indexing precision is exhausted.
+   */
+  private async rebalanceColumn(
+    tx: Prisma.TransactionClient,
+    projectId: string,
+    status: TaskStatus,
+  ): Promise<void> {
+    const tasks = await tx.task.findMany({
+      where: { projectId, status },
+      orderBy: { order: 'asc' },
+      select: { id: true },
+    });
+
+    for (let i = 0; i < tasks.length; i++) {
+      await tx.task.update({
+        where: { id: tasks[i]!.id },
+        data: { order: i + 1 },
+      });
+    }
   }
 
   // ── Realtime helpers ──
