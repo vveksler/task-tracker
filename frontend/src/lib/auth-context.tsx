@@ -16,6 +16,7 @@ import {
   apiRefreshToken,
   apiRegister,
   setAccessToken,
+  setOnSessionExpired,
 } from '@/lib/api-client';
 
 interface AuthState {
@@ -48,6 +49,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (data) setUser(data.user);
       })
       .finally(() => setIsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    setOnSessionExpired(() => {
+      setUser(null);
+    });
+    return () => setOnSessionExpired(null);
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {

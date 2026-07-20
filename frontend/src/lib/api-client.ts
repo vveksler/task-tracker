@@ -15,6 +15,14 @@ export function setAccessToken(token: string | null): void {
   accessToken = token;
 }
 
+// Callback invoked when a 401 persists after refresh — lets AuthProvider
+// clear user state without api-client depending on React.
+let onSessionExpired: (() => void) | null = null;
+
+export function setOnSessionExpired(cb: (() => void) | null): void {
+  onSessionExpired = cb;
+}
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -75,6 +83,9 @@ export async function apiFetch<T>(
     if (refreshed) {
       headers.set('Authorization', `Bearer ${accessToken}`);
       res = await fetch(`${API_URL}${path}`, { ...init, headers });
+    } else {
+      accessToken = null;
+      onSessionExpired?.();
     }
   }
 
