@@ -11,9 +11,11 @@ import {
   Post,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { WorkspaceRolesGuard } from '../common/guards/workspace-roles.guard';
+import { LoggingInterceptor } from './interceptors/logging.interceptor';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
@@ -22,6 +24,7 @@ import { ReorderTaskDto } from './dto/reorder-task.dto';
 @ApiTags('tasks')
 @ApiBearerAuth()
 @UseGuards(WorkspaceRolesGuard)
+@UseInterceptors(LoggingInterceptor)
 @Controller('workspaces/:workspaceId/tasks')
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
