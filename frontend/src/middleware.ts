@@ -1,4 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
+import {
+  BACKEND_URL,
+  REFRESH_COOKIE_NAME,
+  refreshCookieOptions,
+} from "./app/api/auth/cookie-config";
 
 /**
  * Auth middleware for protected routes.
@@ -25,13 +30,6 @@ import { NextRequest, NextResponse } from 'next/server';
  * 4. Pass the access token to Server Components via x-access-token header
  */
 
-const BACKEND_URL =
-  process.env['BACKEND_INTERNAL_URL'] ??
-  process.env['NEXT_PUBLIC_API_URL'] ??
-  'http://localhost:3001';
-
-const REFRESH_COOKIE = 'refresh_token';
-
 interface RefreshResponse {
   accessToken: string;
   refreshToken: string;
@@ -39,31 +37,31 @@ interface RefreshResponse {
 }
 
 export async function middleware(request: NextRequest) {
-  const refreshToken = request.cookies.get(REFRESH_COOKIE)?.value;
+  const refreshToken = request.cookies.get(REFRESH_COOKIE_NAME)?.value;
 
   if (!refreshToken) {
-    return NextResponse.redirect(new URL('/auth/login', request.url));
+    return NextResponse.redirect(new URL("/auth/login", request.url));
   }
 
   try {
     const res = await fetch(`${BACKEND_URL}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken }),
     });
 
     if (!res.ok) {
       const response = NextResponse.redirect(
-        new URL('/auth/login', request.url),
+        new URL("/auth/login", request.url),
       );
-      response.cookies.delete(REFRESH_COOKIE);
+      response.cookies.delete(REFRESH_COOKIE_NAME);
       return response;
     }
 
     const data = (await res.json()) as RefreshResponse;
 
     const requestHeaders = new Headers(request.headers);
-    requestHeaders.set('x-access-token', data.accessToken);
+    requestHeaders.set("x-access-token", data.accessToken);
 
     const response = NextResponse.next({
       request: { headers: requestHeaders },
@@ -72,26 +70,19 @@ export async function middleware(request: NextRequest) {
     // If backend rotated the token, persist the new refresh token.
     // Grace period responses return empty refreshToken — don't overwrite.
     if (data.refreshToken) {
-      const cookieSecure =
-        process.env['COOKIE_SECURE'] !== undefined
-          ? process.env['COOKIE_SECURE'] === 'true'
-          : process.env.NODE_ENV === 'production';
-
-      response.cookies.set(REFRESH_COOKIE, data.refreshToken, {
-        httpOnly: true,
-        secure: cookieSecure,
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 7 * 24 * 60 * 60,
-      });
+      response.cookies.set(
+        REFRESH_COOKIE_NAME,
+        data.refreshToken,
+        refreshCookieOptions(),
+      );
     }
 
     return response;
   } catch {
-    return NextResponse.redirect(new URL('/auth/login', request.url));
+    return NextResponse.redirect(new URL("/auth/login", request.url));
   }
 }
 
 export const config = {
-  matcher: ['/workspaces/:path*'],
+  matcher: ["/workspaces/:path*"],
 };
