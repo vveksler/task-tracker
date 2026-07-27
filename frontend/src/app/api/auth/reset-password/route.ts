@@ -4,7 +4,7 @@ import { BACKEND_URL } from '../cookie-config';
 export async function POST(req: NextRequest) {
   const body = await req.json();
 
-  const backendRes = await fetch(`${BACKEND_URL}/auth/register`, {
+  const backendRes = await fetch(`${BACKEND_URL}/auth/reset-password`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -14,6 +14,5 @@ export async function POST(req: NextRequest) {
     message: backendRes.statusText,
   }));
 
-  // Registration no longer issues a session — only a confirmation email.
   return NextResponse.json(data, { status: backendRes.status });
 }

@@ -228,31 +228,19 @@ describe('BFF auth helpers', () => {
   });
 
   describe('apiRegister', () => {
-    it('should POST to /api/auth/register (BFF)', async () => {
+    it('should POST to /api/auth/register (BFF) and return the message', async () => {
       mockFetch().mockReturnValue(
         jsonResponse({
-          accessToken: 'reg-token',
-          user: { id: '2', email: 'b@c.com', name: 'B' },
+          message: 'Check your email for a confirmation link to finish signing up.',
         }),
       );
 
-      await apiRegister('b@c.com', 'password', 'B');
+      const result = await apiRegister('b@c.com', 'password', 'B');
 
       const [url] = mockFetch().mock.calls[0] as [string];
       expect(url).toBe('/api/auth/register');
-    });
-
-    it('should store the access token from the BFF response', async () => {
-      mockFetch().mockReturnValue(
-        jsonResponse({
-          accessToken: 'reg-token',
-          user: { id: '2', email: 'b@c.com', name: 'B' },
-        }),
-      );
-
-      await apiRegister('b@c.com', 'password', 'B');
-
-      expect(getAccessToken()).toBe('reg-token');
+      expect(result.message).toMatch(/confirmation link/i);
+      expect(getAccessToken()).toBeNull();
     });
   });
 

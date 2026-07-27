@@ -49,6 +49,14 @@ spec:
               value: "http://{{ .Values.ingress.host }}/api"
             - name: NEXT_PUBLIC_WS_URL
               value: "http://{{ .Values.ingress.host }}"
+            - name: NEXT_PUBLIC_APP_URL
+              value: {{ default (printf "http://%s" .Values.ingress.host) .Values.appUrl | quote }}
+            - name: GOOGLE_CALLBACK_URL
+              value: {{ .Values.google.callbackUrl | quote }}
+{{- if .Values.google.clientId }}
+            - name: GOOGLE_CLIENT_ID
+              value: {{ .Values.google.clientId | quote }}
+{{- end }}
           resources:
             {{- toYaml .Values.frontend.resources | nindent 12 }}
           readinessProbe:

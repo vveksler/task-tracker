@@ -22,16 +22,48 @@ enum TaskStatus {
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
-  passwordHash String
+  // Null for Google-only accounts (no password set).
+  passwordHash String?
+  googleId     String?  @unique
   name         String
+  // Null until the user confirms email (password signup) or signs in with Google.
+  emailVerifiedAt DateTime?
   createdAt    DateTime @default(now())
 
-  ownedWorkspaces   Workspace[]       @relation("WorkspaceOwner")
-  workspaceMembers  WorkspaceMember[]
-  assignedTasks     Task[]            @relation("TaskAssignee")
-  refreshTokens     RefreshToken[]
+  ownedWorkspaces           Workspace[]               @relation("WorkspaceOwner")
+  workspaceMembers          WorkspaceMember[]
+  assignedTasks             Task[]                    @relation("TaskAssignee")
+  refreshTokens             RefreshToken[]
+  passwordResetTokens       PasswordResetToken[]
+  emailVerificationTokens   EmailVerificationToken[]
 
   @@map("users")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  tokenHash String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid())
+  tokenHash String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("email_verification_tokens")
 }
 
 model RefreshToken {

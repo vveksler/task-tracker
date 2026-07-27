@@ -6,10 +6,12 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtAccessStrategy } from './strategies/jwt-access.strategy';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
     PassportModule,
+    MailModule,
     // JwtModule is configured without defaults — each sign/verify call
     // in AuthService passes its own secret and expiresIn explicitly,
     // because access and refresh tokens use different secrets.

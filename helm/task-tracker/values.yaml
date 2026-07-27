@@ -61,3 +61,24 @@ ingress:
   enabled: true
   className: nginx
   host: task-tracker.local
+
+# Public app origin (cookies, OAuth redirects, CORS). Defaults to ingress host.
+# For Google OAuth local testing set to http://localhost:3000 in values-local.yaml
+# (Google rejects *.local redirect URIs).
+appUrl: ""
+
+# ── Optional: Google OAuth ──
+# Leave empty to disable. Callback must match Google Cloud Console redirect URI.
+google:
+  clientId: ""
+  clientSecret: ""
+  callbackUrl: "http://task-tracker.local/api/auth/google/callback"
+
+# ── Optional: SMTP (email verification + password reset) ──
+# Empty host disables mail. Sandbox SMTP catchers do not deliver to real inboxes.
+mail:
+  host: ""
+  port: "587"
+  user: ""
+  pass: ""
+  from: "Task Tracker <noreply@task-tracker.local>"

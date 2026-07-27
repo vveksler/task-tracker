@@ -1,6 +1,9 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -8,12 +11,22 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 
 const BCRYPT_ROUNDS = 12;
 const REFRESH_TOKEN_BYTES = 40;
 const REFRESH_TOKEN_DAYS = 7;
+const RESET_TOKEN_BYTES = 32;
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+const VERIFY_TOKEN_BYTES = 32;
+const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+const VERIFY_SENT_MESSAGE =
+  'Check your email for a confirmation link to finish signing up.';
+const RESEND_VERIFY_MESSAGE =
+  'If an unverified account with that email exists, a confirmation link has been sent.';
 
 // Grace period: if a rotated (revoked) token is reused within this window,
 // look up its replacement instead of rejecting. This handles the race
@@ -33,52 +46,115 @@ export interface AuthResult {
   user: AuthUser;
 }
 
+interface GoogleTokenResponse {
+  access_token?: string;
+  id_token?: string;
+  error?: string;
+  error_description?: string;
+}
+
+interface GoogleUserInfo {
+  id: string;
+  email: string;
+  verified_email: boolean;
+  name?: string;
+}
+
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly mail: MailService,
   ) {}
 
-  async register(dto: RegisterDto): Promise<AuthResult> {
+  async register(dto: RegisterDto): Promise<{ message: string }> {
+    if (!this.mail.isConfigured()) {
+      throw new ServiceUnavailableException(
+        'Email is not configured. Set MAIL_HOST (and related MAIL_* vars).',
+      );
+    }
+
+    const email = dto.email.toLowerCase();
     const existing = await this.prisma.user.findUnique({
-      where: { email: dto.email },
-      select: { id: true },
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        emailVerifiedAt: true,
+        passwordHash: true,
+      },
     });
 
-    if (existing) {
+    if (existing?.emailVerifiedAt) {
       throw new ConflictException('Email already registered');
     }
 
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
 
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email,
-        passwordHash,
-        name: dto.name,
-      },
-      select: { id: true, email: true, name: true },
-    });
+    let user: { id: string; email: string };
 
-    const tokens = await this.issueTokens(user.id, user.email);
-    return { ...tokens, user };
+    if (existing && !existing.emailVerifiedAt) {
+      // Unverified re-signup: refresh credentials and resend confirmation.
+      user = await this.prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          passwordHash,
+          name: dto.name,
+          emailVerifiedAt: null,
+        },
+        select: { id: true, email: true },
+      });
+    } else {
+      user = await this.prisma.user.create({
+        data: {
+          email,
+          passwordHash,
+          name: dto.name,
+          emailVerifiedAt: null,
+        },
+        select: { id: true, email: true },
+      });
+    }
+
+    await this.sendVerificationEmail(user.id, user.email);
+    return { message: VERIFY_SENT_MESSAGE };
   }
 
   async login(dto: LoginDto): Promise<AuthResult> {
     const user = await this.prisma.user.findUnique({
-      where: { email: dto.email },
-      select: { id: true, email: true, name: true, passwordHash: true },
+      where: { email: dto.email.toLowerCase() },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        passwordHash: true,
+        emailVerifiedAt: true,
+      },
     });
 
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    if (!user.passwordHash) {
+      throw new UnauthorizedException(
+        'This account uses Google sign-in. Continue with Google instead.',
+      );
+    }
+
     const passwordValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!passwordValid) {
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if (!user.emailVerifiedAt) {
+      throw new UnauthorizedException(
+        'Please verify your email before signing in. Check your inbox for a confirmation link.',
+      );
     }
 
     const tokens = await this.issueTokens(user.id, user.email);
@@ -107,6 +183,286 @@ export class AuthService {
       ...tokens,
       user: { id: user.id, email: user.email, name: user.name },
     };
+  }
+
+  /**
+   * Exchange a Google authorization code for profile, then login or register.
+   * Linking policy (2A): if email already exists, attach googleId and sign in.
+   */
+  async loginWithGoogle(code: string): Promise<AuthResult> {
+    const clientId = this.config.get<string>('google.clientId') ?? '';
+    const clientSecret = this.config.get<string>('google.clientSecret') ?? '';
+    const callbackUrl = this.config.get<string>('google.callbackUrl') ?? '';
+
+    if (!clientId || !clientSecret || !callbackUrl) {
+      throw new ServiceUnavailableException(
+        'Google sign-in is not configured. Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_CALLBACK_URL.',
+      );
+    }
+
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: callbackUrl,
+        grant_type: 'authorization_code',
+      }),
+    });
+
+    const tokenData = (await tokenRes.json()) as GoogleTokenResponse;
+    if (!tokenRes.ok || !tokenData.access_token) {
+      this.logger.warn(
+        `Google token exchange failed: ${tokenData.error_description ?? tokenData.error ?? tokenRes.status}`,
+      );
+      throw new UnauthorizedException('Google authentication failed');
+    }
+
+    const profileRes = await fetch(
+      'https://www.googleapis.com/oauth2/v2/userinfo',
+      {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      },
+    );
+
+    if (!profileRes.ok) {
+      throw new UnauthorizedException('Failed to load Google profile');
+    }
+
+    const profile = (await profileRes.json()) as GoogleUserInfo;
+    if (!profile.email || !profile.verified_email) {
+      throw new UnauthorizedException(
+        'Google account email is missing or not verified',
+      );
+    }
+
+    const googleId = profile.id;
+    const email = profile.email.toLowerCase();
+    const name = profile.name?.trim() || email.split('@')[0] || 'User';
+
+    const now = new Date();
+
+    let user = await this.prisma.user.findUnique({
+      where: { googleId },
+      select: { id: true, email: true, name: true, emailVerifiedAt: true },
+    });
+
+    if (!user) {
+      const byEmail = await this.prisma.user.findUnique({
+        where: { email },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          googleId: true,
+          emailVerifiedAt: true,
+        },
+      });
+
+      if (byEmail) {
+        if (byEmail.googleId && byEmail.googleId !== googleId) {
+          throw new ConflictException(
+            'This email is already linked to a different Google account',
+          );
+        }
+
+        user = await this.prisma.user.update({
+          where: { id: byEmail.id },
+          data: {
+            googleId,
+            emailVerifiedAt: byEmail.emailVerifiedAt ?? now,
+          },
+          select: { id: true, email: true, name: true, emailVerifiedAt: true },
+        });
+      } else {
+        user = await this.prisma.user.create({
+          data: {
+            email,
+            name,
+            googleId,
+            passwordHash: null,
+            emailVerifiedAt: now,
+          },
+          select: { id: true, email: true, name: true, emailVerifiedAt: true },
+        });
+      }
+    } else if (!user.emailVerifiedAt) {
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: { emailVerifiedAt: now },
+        select: { id: true, email: true, name: true, emailVerifiedAt: true },
+      });
+    }
+
+    const tokens = await this.issueTokens(user.id, user.email);
+    return {
+      ...tokens,
+      user: { id: user.id, email: user.email, name: user.name },
+    };
+  }
+
+  async verifyEmail(rawToken: string): Promise<AuthResult> {
+    const tokenHash = this.hashToken(rawToken);
+
+    const stored = await this.prisma.emailVerificationToken.findUnique({
+      where: { tokenHash },
+    });
+
+    if (!stored || stored.usedAt || stored.expiresAt < new Date()) {
+      throw new BadRequestException('Invalid or expired verification token');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: stored.userId },
+      select: { id: true, email: true, name: true, emailVerifiedAt: true },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Invalid or expired verification token');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: { emailVerifiedAt: user.emailVerifiedAt ?? new Date() },
+      }),
+      this.prisma.emailVerificationToken.update({
+        where: { id: stored.id },
+        data: { usedAt: new Date() },
+      }),
+      this.prisma.emailVerificationToken.updateMany({
+        where: {
+          userId: user.id,
+          usedAt: null,
+          id: { not: stored.id },
+        },
+        data: { usedAt: new Date() },
+      }),
+    ]);
+
+    const tokens = await this.issueTokens(user.id, user.email);
+    return {
+      ...tokens,
+      user: { id: user.id, email: user.email, name: user.name },
+    };
+  }
+
+  /**
+   * Always returns success for valid-shaped emails (no enumeration).
+   * Sends only when the user exists, has a password, and is not yet verified.
+   */
+  async resendVerification(email: string): Promise<{ message: string }> {
+    const normalized = email.toLowerCase();
+
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalized },
+      select: {
+        id: true,
+        email: true,
+        passwordHash: true,
+        emailVerifiedAt: true,
+      },
+    });
+
+    if (!user?.passwordHash || user.emailVerifiedAt) {
+      return { message: RESEND_VERIFY_MESSAGE };
+    }
+
+    if (!this.mail.isConfigured()) {
+      throw new ServiceUnavailableException(
+        'Email is not configured. Set MAIL_HOST (and related MAIL_* vars).',
+      );
+    }
+
+    await this.sendVerificationEmail(user.id, user.email);
+    return { message: RESEND_VERIFY_MESSAGE };
+  }
+
+  /**
+   * Always returns success for valid emails (no enumeration).
+   * Sends mail only when the user has a password.
+   */
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const normalized = email.toLowerCase();
+    const message =
+      'If an account with that email exists, a reset link has been sent.';
+
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalized },
+      select: { id: true, email: true, passwordHash: true },
+    });
+
+    if (!user?.passwordHash) {
+      return { message };
+    }
+
+    if (!this.mail.isConfigured()) {
+      throw new ServiceUnavailableException(
+        'Email is not configured. Set MAIL_HOST (and related MAIL_* vars).',
+      );
+    }
+
+    const rawToken = randomBytes(RESET_TOKEN_BYTES).toString('hex');
+    const tokenHash = this.hashToken(rawToken);
+    const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+
+    await this.prisma.passwordResetToken.create({
+      data: {
+        tokenHash,
+        userId: user.id,
+        expiresAt,
+      },
+    });
+
+    const frontendOrigin =
+      this.config.get<string>('app.frontendOrigin') ?? 'http://localhost:3000';
+    const resetUrl = `${frontendOrigin}/auth/reset-password?token=${rawToken}`;
+
+    await this.mail.sendPasswordReset(user.email, resetUrl);
+    return { message };
+  }
+
+  async resetPassword(rawToken: string, password: string): Promise<{ message: string }> {
+    const tokenHash = this.hashToken(rawToken);
+
+    const stored = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash },
+    });
+
+    if (!stored || stored.usedAt || stored.expiresAt < new Date()) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: stored.userId },
+        data: { passwordHash },
+      }),
+      this.prisma.passwordResetToken.update({
+        where: { id: stored.id },
+        data: { usedAt: new Date() },
+      }),
+      // Invalidate other unused reset tokens for this user
+      this.prisma.passwordResetToken.updateMany({
+        where: {
+          userId: stored.userId,
+          usedAt: null,
+          id: { not: stored.id },
+        },
+        data: { usedAt: new Date() },
+      }),
+      // Force re-login after password change
+      this.prisma.refreshToken.updateMany({
+        where: { userId: stored.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+
+    return { message: 'Password updated. You can sign in with your new password.' };
   }
 
   /**
@@ -179,6 +535,35 @@ export class AuthService {
 
   // ── private helpers ──
 
+  private async sendVerificationEmail(
+    userId: string,
+    email: string,
+  ): Promise<void> {
+    const rawToken = randomBytes(VERIFY_TOKEN_BYTES).toString('hex');
+    const tokenHash = this.hashToken(rawToken);
+    const expiresAt = new Date(Date.now() + VERIFY_TOKEN_TTL_MS);
+
+    // Invalidate previous unused tokens so only the latest link works.
+    await this.prisma.emailVerificationToken.updateMany({
+      where: { userId, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+
+    await this.prisma.emailVerificationToken.create({
+      data: {
+        tokenHash,
+        userId,
+        expiresAt,
+      },
+    });
+
+    const frontendOrigin =
+      this.config.get<string>('app.frontendOrigin') ?? 'http://localhost:3000';
+    const verifyUrl = `${frontendOrigin}/auth/verify-email?token=${rawToken}`;
+
+    await this.mail.sendEmailVerification(email, verifyUrl);
+  }
+
   /**
    * Handle a revoked refresh token: if it was revoked by rotation (has
    * replacedByHash) within the grace period, follow the chain and issue
@@ -222,7 +607,6 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
 
-    // Issue a fresh access token; the replacement refresh token is still live
     const accessToken = this.jwt.sign(
       { sub: user.id, email: user.email },
       {
@@ -233,16 +617,8 @@ export class AuthService {
       },
     );
 
-    // Return the raw replacement token? No — the caller doesn't know it.
-    // Instead, return the replacement's hash as a sentinel; the caller
-    // will get a fresh access token, which is what matters. The refresh
-    // token in the response won't be usable for another rotation, but the
-    // caller (middleware) only needs the access token anyway.
-    //
-    // Trade-off: we return an empty string for refreshToken here because
-    // the grace period consumer (middleware) only cares about accessToken.
-    // The BFF client-side refresh path always gets a fresh token pair from
-    // a non-revoked token, so this path is only hit by middleware.
+    // Trade-off: return empty refreshToken for grace path — middleware only
+    // needs accessToken; BFF client refresh always starts from a live cookie.
     return { accessToken, refreshToken: '', user };
   }
 

@@ -23,7 +23,14 @@ interface AuthState {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
+  /** Registers and returns a message; does not create a session until email is verified. */
+  register: (
+    email: string,
+    password: string,
+    name: string,
+  ) => Promise<{ message: string }>;
+  /** Apply a session after email verification (BFF already set the refresh cookie). */
+  setSessionUser: (user: User) => void;
   logout: () => Promise<void>;
 }
 
@@ -65,11 +72,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const register = useCallback(
     async (email: string, password: string, name: string) => {
-      const data = await apiRegister(email, password, name);
-      setUser(data.user);
+      return apiRegister(email, password, name);
     },
     [],
   );
+
+  const setSessionUser = useCallback((next: User) => {
+    setUser(next);
+  }, []);
 
   const logout = useCallback(async () => {
     await apiLogout();
@@ -78,8 +88,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const value = useMemo(
-    () => ({ user, isLoading, login, register, logout }),
-    [user, isLoading, login, register, logout],
+    () => ({ user, isLoading, login, register, setSessionUser, logout }),
+    [user, isLoading, login, register, setSessionUser, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

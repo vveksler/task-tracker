@@ -1,0 +1,23 @@
+# Copy to values-local.yaml (gitignored) and fill in real secrets.
+# Usage:
+#   helm upgrade --install task-tracker helm/task-tracker -n task-tracker \
+#     -f helm/task-tracker/values.yaml \
+#     -f helm/task-tracker/values-local.yaml
+
+# For Google OAuth local testing (Google rejects *.local redirect URIs):
+appUrl: "http://localhost:3000"
+
+google:
+  clientId: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
+  clientSecret: "YOUR_GOOGLE_CLIENT_SECRET"
+  callbackUrl: "http://localhost:3000/api/auth/google/callback"
+
+# Use a real sending SMTP (Gmail App Password, Resend, SendGrid, Mailtrap Email
+# Sending). Mailtrap sandbox (sandbox.smtp.mailtrap.io) does NOT deliver to
+# Gmail — emails stay in the Mailtrap inbox UI only.
+mail:
+  host: "smtp.resend.com"
+  port: "587"
+  user: "resend"
+  pass: "YOUR_SMTP_PASSWORD_OR_API_KEY"
+  from: "Task Tracker <noreply@yourdomain.com>"

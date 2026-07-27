@@ -1,0 +1,42 @@
+# Production-oriented Helm overlay (placeholders only — never commit real secrets).
+# Copy to values-production.yaml (gitignored) or inject secrets via CI/sealed-secrets.
+#
+#   helm upgrade --install task-tracker helm/task-tracker -n task-tracker \
+#     -f helm/task-tracker/values.yaml \
+#     -f helm/task-tracker/values-production.yaml
+#
+# On Railway this chart is NOT used — set the equivalent Variables on each
+# service (see README "Railway production variables"). Mapping:
+#   appUrl              → FRONTEND_ORIGIN / NEXT_PUBLIC_APP_URL
+#   google.*            → GOOGLE_*
+#   mail.*              → MAIL_*
+#   backend.jwt*        → JWT_*
+
+ingress:
+  enabled: true
+  className: nginx
+  # Public HTTPS host of the frontend
+  host: "app.example.com"
+
+appUrl: "https://app.example.com"
+
+backend:
+  imagePullPolicy: IfNotPresent
+  jwtAccessSecret: "CHANGE_ME_LONG_RANDOM_ACCESS_SECRET"
+  # Prefer overriding via secret / CI, not a committed file
+
+frontend:
+  imagePullPolicy: IfNotPresent
+
+google:
+  clientId: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
+  clientSecret: "YOUR_GOOGLE_CLIENT_SECRET"
+  callbackUrl: "https://app.example.com/api/auth/google/callback"
+
+mail:
+  # Real sending SMTP only (not Mailtrap sandbox)
+  host: "smtp.resend.com"
+  port: "587"
+  user: "resend"
+  pass: "YOUR_SMTP_PASSWORD_OR_API_KEY"
+  from: "Task Tracker <noreply@example.com>"

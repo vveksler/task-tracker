@@ -12,6 +12,15 @@ data:
   JWT_ACCESS_EXPIRES_IN: {{ .Values.backend.jwtAccessExpiresIn | quote }}
   # Backend is reachable within the cluster via its Service name
   BACKEND_INTERNAL_URL: "http://backend:{{ .Values.backend.port }}"
-  FRONTEND_ORIGIN: "http://{{ .Values.ingress.host }}"
+  FRONTEND_ORIGIN: {{ default (printf "http://%s" .Values.ingress.host) .Values.appUrl | quote }}
   # No TLS in minikube — cookies must not have Secure flag
   COOKIE_SECURE: "false"
+  GOOGLE_CALLBACK_URL: {{ .Values.google.callbackUrl | quote }}
+  MAIL_PORT: {{ .Values.mail.port | quote }}
+  MAIL_FROM: {{ .Values.mail.from | quote }}
+{{- if .Values.mail.host }}
+  MAIL_HOST: {{ .Values.mail.host | quote }}
+{{- end }}
+{{- if .Values.google.clientId }}
+  GOOGLE_CLIENT_ID: {{ .Values.google.clientId | quote }}
+{{- end }}

@@ -131,7 +131,7 @@ export async function apiRegister(
   email: string,
   password: string,
   name: string,
-): Promise<AuthResponse> {
+): Promise<{ message: string }> {
   const res = await fetch('/api/auth/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -146,9 +146,7 @@ export async function apiRegister(
     );
   }
 
-  const data = (await res.json()) as AuthResponse;
-  accessToken = data.accessToken;
-  return data;
+  return (await res.json()) as { message: string };
 }
 
 export async function apiLogout(): Promise<void> {

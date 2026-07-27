@@ -3,7 +3,10 @@ dist/
 .next/
 .env
 .env.local
+helm/task-tracker/values-local.yaml
+helm/task-tracker/values-production.yaml
 *.log
 .DS_Store
 coverage/
 .turbo/
+*.tsbuildinfo

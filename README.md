@@ -107,6 +107,42 @@ minikube tunnel
 # Open http://task-tracker.local
 ```
 
+For Google OAuth + real inbox mail on minikube, copy
+`helm/task-tracker/values-local.yaml.example` → `values-local.yaml` (gitignored)
+and run `./scripts/minikube-deploy.sh`. Use a **sending** SMTP (not Mailtrap sandbox).
+
+### Option 4: Railway (production)
+
+Railway does **not** use Helm `values.yaml`. Set Variables on each service in the
+[Railway project](https://railway.com/). Helm equivalent placeholders live in
+`helm/task-tracker/values-production.yaml.example`.
+
+**Backend service** (Nest):
+
+| Variable | Example / notes |
+| --- | --- |
+| `DATABASE_URL` | From Railway Postgres plugin |
+| `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | Long random secrets |
+| `FRONTEND_ORIGIN` | `https://<frontend>.up.railway.app` (exact, for CORS + email links) |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google Cloud OAuth client |
+| `GOOGLE_CALLBACK_URL` | `https://<frontend>.up.railway.app/api/auth/google/callback` |
+| `MAIL_HOST` / `MAIL_PORT` / `MAIL_USER` / `MAIL_PASS` / `MAIL_FROM` | Sending SMTP (Gmail App Password, Resend, …) |
+| `NODE_ENV` | `production` |
+
+**Frontend service** (Next):
+
+| Variable | Example / notes |
+| --- | --- |
+| `NEXT_PUBLIC_API_URL` | Backend public URL (also set as Docker **build** arg) |
+| `NEXT_PUBLIC_WS_URL` | Same as API URL (Socket.io) |
+| `NEXT_PUBLIC_APP_URL` | Frontend public URL |
+| `BACKEND_INTERNAL_URL` | Private Railway URL to backend if available |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CALLBACK_URL` | Same callback as backend (secret stays on Nest) |
+| `COOKIE_SECURE` | omit or `true` on HTTPS |
+
+Also add the production callback URI in [Google Cloud Console](https://console.cloud.google.com/)
+Authorized redirect URIs.
+
 ### Seed data (optional)
 
 ```
