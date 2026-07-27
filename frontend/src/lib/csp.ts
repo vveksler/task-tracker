@@ -62,6 +62,22 @@ function connectSrcExtra(): string[] {
 }
 
 /**
+ * Whether CSP should force HTTPS upgrades for subresources.
+ * Driven by the configured browser API scheme — not NODE_ENV alone —
+ * because Compose/minikube run production builds over plain HTTP.
+ */
+function shouldUpgradeInsecureRequests(): boolean {
+  const api = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001';
+  const ws = process.env['NEXT_PUBLIC_WS_URL'] ?? api;
+  const apiOrigin = originOf(api);
+  const wsOrigin = originOf(ws);
+
+  return (
+    !!apiOrigin?.startsWith('https:') && !!wsOrigin?.startsWith('https:')
+  );
+}
+
+/**
  * Build the CSP header value for one request.
  * @param nonce - base64 random value; must match what Next stamps on scripts
  */
@@ -98,8 +114,11 @@ export function buildCspHeader(nonce: string): string {
     "form-action 'self'",
   ];
 
-  // Forces HTTPS for subresources — breaks plain http://localhost, so prod only.
-  if (!isDev && process.env.NODE_ENV !== 'test') {
+  // Forces HTTP→HTTPS for subresources. Only safe when the browser-facing API
+  // is already HTTPS: Docker Compose / minikube run NODE_ENV=production with
+  // http:// NEXT_PUBLIC_* URLs (COOKIE_SECURE=false), and this directive would
+  // rewrite those fetches/WebSockets to https:// / wss:// and break the board.
+  if (shouldUpgradeInsecureRequests()) {
     directives.push('upgrade-insecure-requests');
   }
 

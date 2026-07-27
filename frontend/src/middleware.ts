@@ -138,18 +138,17 @@ export async function middleware(request: NextRequest) {
 }
 
 /**
- * Run on page navigations, skip Next internals and static files.
+ * Run on page navigations *and* Link prefetches; skip Next internals / static.
  * Auth still only applies inside isProtectedPath(); everything else gets CSP.
+ *
+ * Do NOT exclude next-router-prefetch / Purpose: prefetch. Server Components
+ * read x-access-token from middleware. If prefetch skips middleware, layouts
+ * like /workspaces/[id] call serverFetch without a token, cache
+ * redirect('/auth/login'), and the first Link click after sign-in follows
+ * that stale redirect. Backend refresh grace period covers parallel rotations.
  */
 export const config = {
   matcher: [
-    {
-      source:
-        "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-      missing: [
-        { type: "header", key: "next-router-prefetch" },
-        { type: "header", key: "purpose", value: "prefetch" },
-      ],
-    },
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

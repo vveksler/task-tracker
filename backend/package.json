@@ -85,5 +85,12 @@
     "ts-jest": "^29.2.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.0"
+  },
+  "allowScripts": {
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "bcrypt@5.1.1": true,
+    "fsevents@2.3.3": true,
+    "prisma@6.19.3": true
   }
 }

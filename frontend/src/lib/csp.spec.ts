@@ -29,4 +29,20 @@ describe('buildCspHeader', () => {
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("object-src 'none'");
   });
+
+  it('should omit upgrade-insecure-requests when API URLs are http (Compose/minikube)', () => {
+    process.env['NEXT_PUBLIC_API_URL'] = 'http://task-tracker.local/api';
+    process.env['NEXT_PUBLIC_WS_URL'] = 'http://task-tracker.local';
+
+    const csp = buildCspHeader('abc');
+    expect(csp).not.toContain('upgrade-insecure-requests');
+  });
+
+  it('should include upgrade-insecure-requests when API URLs are https', () => {
+    process.env['NEXT_PUBLIC_API_URL'] = 'https://api.example.com';
+    process.env['NEXT_PUBLIC_WS_URL'] = 'https://api.example.com';
+
+    const csp = buildCspHeader('abc');
+    expect(csp).toContain('upgrade-insecure-requests');
+  });
 });

@@ -6,7 +6,7 @@
       "type": "node",
       "request": "launch",
       "cwd": "${workspaceFolder}/frontend",
-      "runtimeExecutable": "npm",
+      "runtimeExecutable": "${workspaceFolder}/.vscode/run-npm.sh",
       "runtimeArgs": ["run", "dev"],
       "env": { "NODE_OPTIONS": "--inspect" },
       "skipFiles": ["<node_internals>/**", "**/node_modules/**"],
@@ -22,7 +22,7 @@
       "type": "node",
       "request": "launch",
       "cwd": "${workspaceFolder}/backend",
-      "runtimeExecutable": "npm",
+      "runtimeExecutable": "${workspaceFolder}/.vscode/run-npm.sh",
       "runtimeArgs": ["run", "start:debug"],
       "skipFiles": ["<node_internals>/**", "**/node_modules/**"],
       "console": "integratedTerminal"
@@ -32,7 +32,7 @@
       "type": "node",
       "request": "launch",
       "cwd": "${workspaceFolder}/backend",
-      "runtimeExecutable": "npm",
+      "runtimeExecutable": "${workspaceFolder}/.vscode/run-npm.sh",
       "runtimeArgs": ["test", "--", "--runInBand"],
       "skipFiles": ["<node_internals>/**", "**/node_modules/**"],
       "console": "integratedTerminal"
@@ -42,7 +42,7 @@
       "type": "node",
       "request": "launch",
       "cwd": "${workspaceFolder}/frontend",
-      "runtimeExecutable": "npm",
+      "runtimeExecutable": "${workspaceFolder}/.vscode/run-npm.sh",
       "runtimeArgs": ["test", "--", "--runInBand"],
       "skipFiles": ["<node_internals>/**", "**/node_modules/**"],
       "console": "integratedTerminal"
