@@ -4,9 +4,10 @@ import {
   REFRESH_COOKIE_NAME,
   refreshCookieOptions,
 } from "./app/api/auth/cookie-config";
+import { buildCspHeader, createCspNonce } from "./lib/csp";
 
 /**
- * Auth middleware for protected routes.
+ * Auth middleware for protected routes + CSP for all matched document routes.
  *
  * Why middleware instead of doing refresh inside serverFetch:
  * Server Components cannot call cookies().set() — only Route Handlers,
@@ -14,6 +15,12 @@ import {
  * refresh token (old revoked, new issued), we MUST persist the new token
  * in the cookie. Middleware is the right place: it runs before the page
  * renders and can modify both request headers and response cookies.
+ *
+ * Why CSP lives here (not only in next.config):
+ * A strong script-src uses a per-request nonce. next.config headers() are
+ * static at build time, so they cannot emit a fresh nonce. Middleware can.
+ * We set CSP on both the request (so Next SSR can stamp nonces on scripts)
+ * and the response (so the browser receives the policy on the HTML document).
  *
  * Grace period: the backend implements a 30-second grace window for
  * recently-rotated tokens. If parallel requests (middleware + RSC) both
@@ -23,11 +30,13 @@ import {
  * re-rotating. This eliminates the race condition that previously
  * required rotate=false.
  *
- * Flow:
- * 1. Read refresh_token cookie
- * 2. Exchange it for a fresh access token + rotated refresh token
- * 3. Set the new refresh_token cookie on the response (if rotated)
- * 4. Pass the access token to Server Components via x-access-token header
+ * Flow (protected /workspaces):
+ * 1. Build CSP nonce + header
+ * 2. Read refresh_token cookie
+ * 3. Exchange it for a fresh access token + rotated refresh token
+ * 4. Set the new refresh_token cookie on the response (if rotated)
+ * 5. Pass the access token to Server Components via x-access-token header
+ * 6. Attach Content-Security-Policy on the way out
  */
 
 interface RefreshResponse {
@@ -36,11 +45,58 @@ interface RefreshResponse {
   user: { id: string; email: string; name: string };
 }
 
+function isProtectedPath(pathname: string): boolean {
+  return pathname === "/workspaces" || pathname.startsWith("/workspaces/");
+}
+
+/** Put CSP on the browser-facing response (document). */
+function setResponseCsp(response: NextResponse, csp: string): NextResponse {
+  response.headers.set("Content-Security-Policy", csp);
+  return response;
+}
+
+function nextWithCsp(
+  request: NextRequest,
+  csp: string,
+  nonce: string,
+  extraRequestHeaders?: Record<string, string>,
+): NextResponse {
+  const requestHeaders = new Headers(request.headers);
+  // Must be set *before* next(): Next SSR reads CSP/nonce from the request.
+  requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("Content-Security-Policy", csp);
+  if (extraRequestHeaders) {
+    for (const [key, value] of Object.entries(extraRequestHeaders)) {
+      requestHeaders.set(key, value);
+    }
+  }
+  const response = NextResponse.next({
+    request: { headers: requestHeaders },
+  });
+  return setResponseCsp(response, csp);
+}
+
+function redirectWithCsp(url: URL, csp: string): NextResponse {
+  return setResponseCsp(NextResponse.redirect(url), csp);
+}
+
 export async function middleware(request: NextRequest) {
+  const nonce = createCspNonce();
+  const csp = buildCspHeader(nonce);
+
+  // Public pages (login/register/home): CSP only, no auth gate.
+  if (!isProtectedPath(request.nextUrl.pathname)) {
+    return nextWithCsp(request, csp, nonce);
+  }
+
   const refreshToken = request.cookies.get(REFRESH_COOKIE_NAME)?.value;
 
   if (!refreshToken) {
-    return NextResponse.redirect(new URL("/auth/login", request.url));
+    const response = redirectWithCsp(
+      new URL("/auth/login", request.url),
+      csp,
+    );
+    return response;
   }
 
   try {
@@ -51,8 +107,9 @@ export async function middleware(request: NextRequest) {
     });
 
     if (!res.ok) {
-      const response = NextResponse.redirect(
+      const response = redirectWithCsp(
         new URL("/auth/login", request.url),
+        csp,
       );
       response.cookies.delete(REFRESH_COOKIE_NAME);
       return response;
@@ -60,11 +117,8 @@ export async function middleware(request: NextRequest) {
 
     const data = (await res.json()) as RefreshResponse;
 
-    const requestHeaders = new Headers(request.headers);
-    requestHeaders.set("x-access-token", data.accessToken);
-
-    const response = NextResponse.next({
-      request: { headers: requestHeaders },
+    const response = nextWithCsp(request, csp, nonce, {
+      "x-access-token": data.accessToken,
     });
 
     // If backend rotated the token, persist the new refresh token.
@@ -79,10 +133,23 @@ export async function middleware(request: NextRequest) {
 
     return response;
   } catch {
-    return NextResponse.redirect(new URL("/auth/login", request.url));
+    return redirectWithCsp(new URL("/auth/login", request.url), csp);
   }
 }
 
+/**
+ * Run on page navigations, skip Next internals and static files.
+ * Auth still only applies inside isProtectedPath(); everything else gets CSP.
+ */
 export const config = {
-  matcher: ["/workspaces/:path*"],
+  matcher: [
+    {
+      source:
+        "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+      missing: [
+        { type: "header", key: "next-router-prefetch" },
+        { type: "header", key: "purpose", value: "prefetch" },
+      ],
+    },
+  ],
 };

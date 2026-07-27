@@ -34,8 +34,10 @@ function makeRequest(
   url: string,
   cookies: Record<string, string> = {},
 ): Parameters<typeof middleware>[0] {
+  const parsed = new URL(url);
   return {
     url,
+    nextUrl: { pathname: parsed.pathname },
     cookies: {
       get: (name: string) => {
         const value = cookies[name];
@@ -91,6 +93,9 @@ jest.mock('next/server', () => {
       return {
         get(name: string) {
           return self._headers.get(name) ?? null;
+        },
+        set(name: string, value: string) {
+          self._headers.set(name, value);
         },
       };
     }
@@ -254,6 +259,51 @@ describe('auth middleware', () => {
       const res = await middleware(req);
 
       expect((res as any)._redirectUrl).toBe(`${BASE}/auth/login`);
+    });
+  });
+
+  describe('CSP header', () => {
+    it('should set Content-Security-Policy on public page responses', async () => {
+      const req = makeRequest(`${BASE}/auth/login`);
+      const res = await middleware(req);
+
+      const csp = (res as any).headers.get('Content-Security-Policy') as string;
+      expect(csp).toContain("default-src 'self'");
+      expect(csp).toMatch(/script-src[^;]*'nonce-[A-Za-z0-9+/=]+'/);
+      expect(csp).toContain('connect-src');
+      expect(csp).toContain("frame-ancestors 'none'");
+    });
+
+    it('should set Content-Security-Policy on authenticated page responses', async () => {
+      mockFetch().mockReturnValue(
+        jsonResponse({
+          accessToken: 'access',
+          refreshToken: 'refresh',
+          user: { id: '1', email: 'a@b.com', name: 'A' },
+        }),
+      );
+
+      const req = makeRequest(`${BASE}/workspaces`, {
+        refresh_token: 'my-refresh-token',
+      });
+      const res = await middleware(req);
+
+      const csp = (res as any).headers.get('Content-Security-Policy') as string;
+      expect(csp).toMatch(/nonce-/);
+      expect((res as any)._requestHeaders.get('Content-Security-Policy')).toBe(
+        csp,
+      );
+      expect((res as any)._requestHeaders.get('x-nonce')).toBeTruthy();
+    });
+
+    it('should set Content-Security-Policy on auth redirects', async () => {
+      const req = makeRequest(`${BASE}/workspaces`);
+      const res = await middleware(req);
+
+      expect((res as any)._redirectUrl).toBe(`${BASE}/auth/login`);
+      expect((res as any).headers.get('Content-Security-Policy')).toContain(
+        "default-src 'self'",
+      );
     });
   });
 
