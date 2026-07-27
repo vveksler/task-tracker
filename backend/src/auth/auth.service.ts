@@ -120,7 +120,7 @@ export class AuthService {
       });
     }
 
-    await this.sendVerificationEmail(user.id, user.email);
+    await this.enqueueVerificationEmail(user.id, user.email);
     return { message: VERIFY_SENT_MESSAGE };
   }
 
@@ -376,7 +376,7 @@ export class AuthService {
       );
     }
 
-    await this.sendVerificationEmail(user.id, user.email);
+    await this.enqueueVerificationEmail(user.id, user.email);
     return { message: RESEND_VERIFY_MESSAGE };
   }
 
@@ -420,7 +420,10 @@ export class AuthService {
       this.config.get<string>('app.frontendOrigin') ?? 'http://localhost:3000';
     const resetUrl = `${frontendOrigin}/auth/reset-password?token=${rawToken}`;
 
-    await this.mail.sendPasswordReset(user.email, resetUrl);
+    this.mail.enqueue(
+      () => this.mail.sendPasswordReset(user.email, resetUrl),
+      'password reset',
+    );
     return { message };
   }
 
@@ -535,7 +538,7 @@ export class AuthService {
 
   // ── private helpers ──
 
-  private async sendVerificationEmail(
+  private async enqueueVerificationEmail(
     userId: string,
     email: string,
   ): Promise<void> {
@@ -561,7 +564,12 @@ export class AuthService {
       this.config.get<string>('app.frontendOrigin') ?? 'http://localhost:3000';
     const verifyUrl = `${frontendOrigin}/auth/verify-email?token=${rawToken}`;
 
-    await this.mail.sendEmailVerification(email, verifyUrl);
+    // Persist token first, then send SMTP off the request path so register
+    // returns "Check your email" without waiting on Gmail/Railway latency.
+    this.mail.enqueue(
+      () => this.mail.sendEmailVerification(email, verifyUrl),
+      'email verification',
+    );
   }
 
   /**

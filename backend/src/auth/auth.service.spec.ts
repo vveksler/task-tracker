@@ -65,6 +65,7 @@ describe('AuthService', () => {
     isConfigured: jest.Mock;
     sendPasswordReset: jest.Mock;
     sendEmailVerification: jest.Mock;
+    enqueue: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -100,6 +101,10 @@ describe('AuthService', () => {
       isConfigured: jest.fn().mockReturnValue(true),
       sendPasswordReset: jest.fn().mockResolvedValue(undefined),
       sendEmailVerification: jest.fn().mockResolvedValue(undefined),
+      // Mirror production: run the queued send immediately in tests.
+      enqueue: jest.fn((send: () => Promise<void>) => {
+        void send();
+      }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -141,6 +146,7 @@ describe('AuthService', () => {
       expect(result.message).toMatch(/confirmation link/i);
       expect(prisma.user.create).toHaveBeenCalledTimes(1);
       expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+      expect(mail.enqueue).toHaveBeenCalled();
       expect(mail.sendEmailVerification).toHaveBeenCalledWith(
         mockUser.email,
         expect.stringContaining('/auth/verify-email?token='),
@@ -175,6 +181,27 @@ describe('AuthService', () => {
       expect(prisma.user.create).not.toHaveBeenCalled();
       expect(prisma.user.update).toHaveBeenCalled();
       expect(mail.sendEmailVerification).toHaveBeenCalled();
+    });
+
+    it('should return before SMTP finishes (non-blocking enqueue)', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.user.create.mockResolvedValue({
+        id: mockUser.id,
+        email: mockUser.email,
+      });
+      prisma.emailVerificationToken.create.mockResolvedValue({ id: 'evt-1' });
+      // Simulate a hung SMTP: enqueue never runs the send callback.
+      mail.enqueue.mockImplementation(() => undefined);
+
+      const result = await service.register({
+        email: mockUser.email,
+        password: 'password123',
+        name: mockUser.name,
+      });
+
+      expect(result.message).toMatch(/confirmation link/i);
+      expect(mail.enqueue).toHaveBeenCalled();
+      expect(mail.sendEmailVerification).not.toHaveBeenCalled();
     });
 
     it('should throw ConflictException if email is already verified', async () => {

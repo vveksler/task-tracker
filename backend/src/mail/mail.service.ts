@@ -2,6 +2,10 @@ import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config';
 import nodemailer, { type Transporter } from 'nodemailer';
 
+/** Cap SMTP wait so auth endpoints never hang until the platform times out. */
+const SMTP_CONNECTION_TIMEOUT_MS = 10_000;
+const SMTP_SOCKET_TIMEOUT_MS = 15_000;
+
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
@@ -25,6 +29,9 @@ export class MailService {
         host: this.config.get<string>('mail.host'),
         port: this.config.get<number>('mail.port'),
         secure: this.config.get<number>('mail.port') === 465,
+        connectionTimeout: SMTP_CONNECTION_TIMEOUT_MS,
+        greetingTimeout: SMTP_CONNECTION_TIMEOUT_MS,
+        socketTimeout: SMTP_SOCKET_TIMEOUT_MS,
         auth: {
           user: this.config.get<string>('mail.user') || undefined,
           pass: this.config.get<string>('mail.pass') || undefined,
@@ -52,6 +59,25 @@ export class MailService {
       text: `Confirm your email using this link (valid for 24 hours):\n\n${verifyUrl}\n\nIf you did not create an account, you can ignore this email.`,
       html: `<p>Confirm your email using this link (valid for 24 hours):</p><p><a href="${verifyUrl}">${verifyUrl}</a></p><p>If you did not create an account, you can ignore this email.</p>`,
       failureLabel: 'email verification',
+    });
+  }
+
+  /**
+   * Fire-and-forget send for signup / reset flows.
+   * Trade-off vs awaiting sendMail: the HTTP handler returns immediately
+   * ("check your email") even if SMTP is slow or temporarily down. Failures
+   * are logged; the user can use resend. Prefer this over blocking register
+   * for 30–60s until the platform kills the request.
+   */
+  enqueue(
+    send: () => Promise<void>,
+    context: string,
+  ): void {
+    void send().catch((err: unknown) => {
+      this.logger.error(
+        `Background ${context} email failed`,
+        err instanceof Error ? err.stack : String(err),
+      );
     });
   }
 
