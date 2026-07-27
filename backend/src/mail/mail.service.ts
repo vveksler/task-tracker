@@ -116,7 +116,15 @@ export class MailService {
     html: string;
   }): Promise<void> {
     const apiKey = this.config.get<string>('mail.resendApiKey') ?? '';
-    const from = this.config.get<string>('mail.from');
+    // Resend rejects unverified domains. Test sender must be onboarding@resend.dev
+    // until you verify your own domain in the Resend dashboard.
+    const configuredFrom = this.config.get<string>('mail.from') ?? '';
+    const from =
+      !configuredFrom ||
+      configuredFrom.includes('localhost') ||
+      configuredFrom.includes('task-tracker.local')
+        ? 'Task Tracker <onboarding@resend.dev>'
+        : configuredFrom;
 
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -135,7 +143,20 @@ export class MailService {
 
     if (!res.ok) {
       const body = await res.text();
-      throw new Error(`Resend API ${res.status}: ${body}`);
+      this.logger.error(
+        `Resend API ${res.status} (from=${from}): ${body}`,
+      );
+      // Surface Resend's message so misconfigured MAIL_FROM is obvious in the UI.
+      let detail = body;
+      try {
+        const parsed = JSON.parse(body) as { message?: string };
+        if (parsed.message) detail = parsed.message;
+      } catch {
+        /* keep raw body */
+      }
+      throw new ServiceUnavailableException(
+        `Failed to send email via Resend: ${detail}`,
+      );
     }
   }
 
