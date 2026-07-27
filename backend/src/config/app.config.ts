@@ -28,6 +28,8 @@ export const mailConfig = registerAs('mail', () => ({
   user: process.env['MAIL_USER'] ?? '',
   pass: process.env['MAIL_PASS'] ?? '',
   from: process.env['MAIL_FROM'] ?? 'Task Tracker <noreply@localhost>',
+  // Prefer HTTPS API on Railway (Hobby blocks outbound SMTP ports).
+  resendApiKey: process.env['RESEND_API_KEY'] ?? '',
 }));
 
 export type AppConfig = ReturnType<typeof appConfig>;

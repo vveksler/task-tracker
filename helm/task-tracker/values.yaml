@@ -74,9 +74,10 @@ google:
   clientSecret: ""
   callbackUrl: "http://task-tracker.local/api/auth/google/callback"
 
-# ── Optional: SMTP (email verification + password reset) ──
-# Empty host disables mail. Sandbox SMTP catchers do not deliver to real inboxes.
+# ── Email (verification + password reset) ──
+# Prefer Resend on Railway (Hobby blocks SMTP). Empty both → mail disabled.
 mail:
+  resendApiKey: ""
   host: ""
   port: "587"
   user: ""

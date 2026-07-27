@@ -12,12 +12,12 @@ google:
   clientSecret: "YOUR_GOOGLE_CLIENT_SECRET"
   callbackUrl: "http://localhost:3000/api/auth/google/callback"
 
-# Use a real sending SMTP (Gmail App Password, Resend, SendGrid, Mailtrap Email
-# Sending). Mailtrap sandbox (sandbox.smtp.mailtrap.io) does NOT deliver to
-# Gmail — emails stay in the Mailtrap inbox UI only.
+# Local: Mailtrap SMTP is fine (caught in Mailtrap UI, not real Gmail).
+# Railway Hobby: SMTP is blocked — use RESEND_API_KEY instead (see README).
 mail:
-  host: "smtp.resend.com"
-  port: "587"
-  user: "resend"
-  pass: "YOUR_SMTP_PASSWORD_OR_API_KEY"
-  from: "Task Tracker <noreply@yourdomain.com>"
+  host: "sandbox.smtp.mailtrap.io"
+  port: "2525"
+  user: "YOUR_MAILTRAP_USER"
+  pass: "YOUR_MAILTRAP_PASS"
+  from: "Task Tracker <noreply@localhost>"
+  # resendApiKey: "re_xxxxxxxx"

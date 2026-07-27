@@ -126,7 +126,8 @@ Railway does **not** use Helm `values.yaml`. Set Variables on each service in th
 | `FRONTEND_ORIGIN` | `https://<frontend>.up.railway.app` (exact, for CORS + email links) |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google Cloud OAuth client |
 | `GOOGLE_CALLBACK_URL` | `https://<frontend>.up.railway.app/api/auth/google/callback` |
-| `MAIL_HOST` / `MAIL_PORT` / `MAIL_USER` / `MAIL_PASS` / `MAIL_FROM` | Sending SMTP (Gmail App Password, Resend, …) |
+| `MAIL_HOST` / `MAIL_PORT` / `MAIL_USER` / `MAIL_PASS` / `MAIL_FROM` | SMTP (local / Pro only — Hobby blocks SMTP) |
+| `RESEND_API_KEY` | **Preferred on Railway Hobby** — HTTPS email API ([Resend](https://resend.com)); set `MAIL_FROM` too |
 | `NODE_ENV` | `production` |
 
 **Frontend service** (Next):

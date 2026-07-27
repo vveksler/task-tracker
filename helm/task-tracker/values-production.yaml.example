@@ -7,15 +7,15 @@
 #
 # On Railway this chart is NOT used — set the equivalent Variables on each
 # service (see README "Railway production variables"). Mapping:
-#   appUrl              → FRONTEND_ORIGIN / NEXT_PUBLIC_APP_URL
+#   appUrl              → FRONTEND_ORIGIN / NEXT_PUBLIC_APP_URL / APP_URL
 #   google.*            → GOOGLE_*
-#   mail.*              → MAIL_*
+#   mail.resendApiKey   → RESEND_API_KEY
+#   mail.from           → MAIL_FROM
 #   backend.jwt*        → JWT_*
 
 ingress:
   enabled: true
   className: nginx
-  # Public HTTPS host of the frontend
   host: "app.example.com"
 
 appUrl: "https://app.example.com"
@@ -23,7 +23,6 @@ appUrl: "https://app.example.com"
 backend:
   imagePullPolicy: IfNotPresent
   jwtAccessSecret: "CHANGE_ME_LONG_RANDOM_ACCESS_SECRET"
-  # Prefer overriding via secret / CI, not a committed file
 
 frontend:
   imagePullPolicy: IfNotPresent
@@ -34,9 +33,10 @@ google:
   callbackUrl: "https://app.example.com/api/auth/google/callback"
 
 mail:
-  # Real sending SMTP only (not Mailtrap sandbox)
-  host: "smtp.resend.com"
+  # Railway Hobby blocks SMTP — use Resend HTTPS API key.
+  resendApiKey: "re_xxxxxxxx"
+  from: "Task Tracker <onboarding@resend.dev>"
+  host: ""
   port: "587"
-  user: "resend"
-  pass: "YOUR_SMTP_PASSWORD_OR_API_KEY"
-  from: "Task Tracker <noreply@example.com>"
+  user: ""
+  pass: ""

@@ -14,13 +14,20 @@ export class MailService {
   constructor(private readonly config: ConfigService) {}
 
   isConfigured(): boolean {
-    return Boolean(this.config.get<string>('mail.host'));
+    return Boolean(
+      this.config.get<string>('mail.resendApiKey') ||
+        this.config.get<string>('mail.host'),
+    );
+  }
+
+  private usesResend(): boolean {
+    return Boolean(this.config.get<string>('mail.resendApiKey'));
   }
 
   private getTransporter(): Transporter {
-    if (!this.isConfigured()) {
+    if (!this.config.get<string>('mail.host')) {
       throw new ServiceUnavailableException(
-        'Email is not configured. Set MAIL_HOST (and related MAIL_* vars).',
+        'Email is not configured. Set RESEND_API_KEY (Railway) or MAIL_HOST.',
       );
     }
 
@@ -62,25 +69,6 @@ export class MailService {
     });
   }
 
-  /**
-   * Fire-and-forget send for signup / reset flows.
-   * Trade-off vs awaiting sendMail: the HTTP handler returns immediately
-   * ("check your email") even if SMTP is slow or temporarily down. Failures
-   * are logged; the user can use resend. Prefer this over blocking register
-   * for 30–60s until the platform kills the request.
-   */
-  enqueue(
-    send: () => Promise<void>,
-    context: string,
-  ): void {
-    void send().catch((err: unknown) => {
-      this.logger.error(
-        `Background ${context} email failed`,
-        err instanceof Error ? err.stack : String(err),
-      );
-    });
-  }
-
   private async sendMail(params: {
     to: string;
     subject: string;
@@ -88,16 +76,25 @@ export class MailService {
     html: string;
     failureLabel: string;
   }): Promise<void> {
-    const from = this.config.get<string>('mail.from');
+    if (!this.isConfigured()) {
+      throw new ServiceUnavailableException(
+        'Email is not configured. Set RESEND_API_KEY (Railway) or MAIL_HOST.',
+      );
+    }
+
     try {
-      await this.getTransporter().sendMail({
-        from,
-        to: params.to,
-        subject: params.subject,
-        text: params.text,
-        html: params.html,
-      });
+      if (this.usesResend()) {
+        await this.sendViaResend(params);
+      } else {
+        await this.sendViaSmtp(params);
+      }
+      this.logger.log(
+        `Sent ${params.failureLabel} email to ${params.to} via ${this.usesResend() ? 'Resend' : 'SMTP'}`,
+      );
     } catch (err) {
+      if (err instanceof ServiceUnavailableException) {
+        throw err;
+      }
       this.logger.error(
         `Failed to send ${params.failureLabel} email to ${params.to}`,
         err instanceof Error ? err.stack : String(err),
@@ -106,5 +103,55 @@ export class MailService {
         `Failed to send ${params.failureLabel} email. Try again later.`,
       );
     }
+  }
+
+  /**
+   * HTTPS API — works on Railway Hobby (outbound SMTP ports are blocked).
+   * No extra npm dependency; plain fetch to Resend REST.
+   */
+  private async sendViaResend(params: {
+    to: string;
+    subject: string;
+    text: string;
+    html: string;
+  }): Promise<void> {
+    const apiKey = this.config.get<string>('mail.resendApiKey') ?? '';
+    const from = this.config.get<string>('mail.from');
+
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from,
+        to: [params.to],
+        subject: params.subject,
+        text: params.text,
+        html: params.html,
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Resend API ${res.status}: ${body}`);
+    }
+  }
+
+  private async sendViaSmtp(params: {
+    to: string;
+    subject: string;
+    text: string;
+    html: string;
+  }): Promise<void> {
+    const from = this.config.get<string>('mail.from');
+    await this.getTransporter().sendMail({
+      from,
+      to: params.to,
+      subject: params.subject,
+      text: params.text,
+      html: params.html,
+    });
   }
 }

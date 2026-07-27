@@ -120,7 +120,7 @@ export class AuthService {
       });
     }
 
-    await this.enqueueVerificationEmail(user.id, user.email);
+    await this.sendVerificationEmail(user.id, user.email);
     return { message: VERIFY_SENT_MESSAGE };
   }
 
@@ -376,7 +376,7 @@ export class AuthService {
       );
     }
 
-    await this.enqueueVerificationEmail(user.id, user.email);
+    await this.sendVerificationEmail(user.id, user.email);
     return { message: RESEND_VERIFY_MESSAGE };
   }
 
@@ -420,10 +420,7 @@ export class AuthService {
       this.config.get<string>('app.frontendOrigin') ?? 'http://localhost:3000';
     const resetUrl = `${frontendOrigin}/auth/reset-password?token=${rawToken}`;
 
-    this.mail.enqueue(
-      () => this.mail.sendPasswordReset(user.email, resetUrl),
-      'password reset',
-    );
+    await this.mail.sendPasswordReset(user.email, resetUrl);
     return { message };
   }
 
@@ -538,7 +535,7 @@ export class AuthService {
 
   // ── private helpers ──
 
-  private async enqueueVerificationEmail(
+  private async sendVerificationEmail(
     userId: string,
     email: string,
   ): Promise<void> {
@@ -564,12 +561,9 @@ export class AuthService {
       this.config.get<string>('app.frontendOrigin') ?? 'http://localhost:3000';
     const verifyUrl = `${frontendOrigin}/auth/verify-email?token=${rawToken}`;
 
-    // Persist token first, then send SMTP off the request path so register
-    // returns "Check your email" without waiting on Gmail/Railway latency.
-    this.mail.enqueue(
-      () => this.mail.sendEmailVerification(email, verifyUrl),
-      'email verification',
-    );
+    // Await send: Resend HTTPS is fast; local SMTP has connection timeouts.
+    // Railway Hobby blocks outbound SMTP — use RESEND_API_KEY there.
+    await this.mail.sendEmailVerification(email, verifyUrl);
   }
 
   /**
