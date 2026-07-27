@@ -123,7 +123,7 @@ export class AuthService {
    * a potential token theft — the entire family could be revoked in a
    * production system, but here we simply reject with "Token has been revoked".
    *
-   * Edge case (Phase 1): three-step check — not found / revoked / expired.
+   * Three-step check — not found / revoked / expired.
    */
   async refresh(rawRefreshToken: string): Promise<AuthResult> {
     const tokenHash = this.hashToken(rawRefreshToken);

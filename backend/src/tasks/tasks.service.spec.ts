@@ -242,12 +242,10 @@ describe('TasksService', () => {
     });
 
     /**
-     * EDGE CASE (Phase 3): concurrent reorder race condition.
-     *
-     * When two reorder requests hit simultaneously, the Serializable
-     * transaction can fail with P2034. The service retries once, then
-     * returns a clear error on the second failure — not a silent
-     * order collision.
+     * Concurrent reorder race condition: when two reorder requests hit
+     * simultaneously, the Serializable transaction can fail with P2034.
+     * The service retries once, then returns a clear error on the second
+     * failure — not a silent order collision.
      */
     it('should retry on serialization failure and throw after max retries', async () => {
       const serializationError = new Prisma.PrismaClientKnownRequestError(

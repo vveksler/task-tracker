@@ -1,6 +1,6 @@
 /**
- * Board store tests — covers the core Zustand store logic including
- * the Phase 5 "Edge case": optimistic update rollback on failed reorder.
+ * Board store tests — covers Zustand store logic including optimistic
+ * update rollback on failed reorder.
  */
 
 import type { Task } from '@/types/api';
@@ -121,8 +121,6 @@ describe('BoardStore', () => {
     });
 
     /**
-     * EDGE CASE (Phase 5): optimistic update rollback.
-     *
      * When the server rejects the reorder (e.g. backend down, conflict),
      * the card must snap back to its original column/position and the
      * user sees an error message — not a silently stuck card.

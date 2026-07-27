@@ -236,10 +236,10 @@ export class TasksService {
    * tasks above and below the target position. This avoids reindexing
    * all tasks in the column on every drag.
    *
-   * Edge case (Phase 3): wrapped in a Serializable transaction to prevent
-   * two concurrent reorder requests from reading the same order values
-   * and both computing the same midpoint. If a conflict occurs, Prisma
-   * throws a P2034 error and we retry once.
+   * Wrapped in a Serializable transaction to prevent two concurrent
+   * reorder requests from reading the same order values and both
+   * computing the same midpoint. If a conflict occurs, Prisma throws
+   * a P2034 error and we retry once.
    *
    * Trade-off: Serializable isolation is stricter than needed for most
    * operations, but reorder is the one place where concurrent reads of

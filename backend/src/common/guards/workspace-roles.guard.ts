@@ -20,9 +20,9 @@ import { ROLES_KEY } from '../decorators/roles.decorator';
  * If @Roles('ADMIN') is set on the handler, membership alone is not enough —
  * the user's role in the workspace must match.
  *
- * Edge case (Phase 2): this guard is the server-side enforcement.
- * The frontend may hide buttons for non-admins, but that's UX, not security.
- * This guard ensures the API itself rejects unauthorized mutations.
+ * Server-side enforcement: the frontend may hide buttons for non-admins,
+ * but that is UX, not security. This guard ensures the API itself rejects
+ * unauthorized mutations.
  */
 @Injectable()
 export class WorkspaceRolesGuard implements CanActivate {

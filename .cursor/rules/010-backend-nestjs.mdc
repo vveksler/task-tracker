@@ -73,9 +73,7 @@ never instantiate PrismaClient directly outside this module).
 
 - Unit tests (`*.service.spec.ts`) for business logic — mock PrismaService.
 - e2e tests (`test/*.e2e-spec.ts`) using `supertest` against a real test
-  database for auth flow and at least the task reorder endpoint (this is
-  where the race-condition fix needs a regression test — see PROJECT_PLAN.md
-  Phase 3).
-- Do not skip tests for endpoints called out in PROJECT_PLAN.md's "Edge case"
-  notes — those are exactly the spots that need a regression test once fixed,
-  or the bug can silently come back.
+  database for auth flow and at least the task reorder endpoint (race-condition
+  and ownership checks need regression coverage — see PROJECT_PLAN.md Phase 3).
+- Keep regression tests for security and concurrency edge cases fixed during
+  development — otherwise those bugs can silently come back.

@@ -70,10 +70,10 @@ export class TaskGateway implements OnGatewayConnection, OnGatewayDisconnect {
   /**
    * Join a workspace room + project context.
    *
-   * Edge case (Phase 4): on every join (including reconnect), we send
-   * the full board state via board:sync. This ensures the client never
-   * has a stale view after a dropped connection — it refetches
-   * automatically on rejoin instead of assuming no events were missed.
+   * On every join (including reconnect), send the full board state via
+   * board:sync so the client never keeps a stale view after a dropped
+   * connection — it refetches on rejoin instead of assuming no events
+   * were missed.
    */
   @SubscribeMessage('workspace:join')
   async handleJoin(

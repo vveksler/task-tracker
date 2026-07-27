@@ -153,11 +153,9 @@ describe('TaskGateway', () => {
     });
 
     /**
-     * EDGE CASE (Phase 4): reconnect reconciliation.
-     *
-     * When a client reconnects, it sends workspace:join again.
-     * The gateway must leave old rooms, join the new one, and
-     * send a fresh board:sync — ensuring no events are missed.
+     * Reconnect reconciliation: when a client reconnects it sends
+     * workspace:join again. The gateway must leave old rooms, join the
+     * new one, and send a fresh board:sync — ensuring no events are missed.
      */
     it('should leave old workspace room on rejoin and send fresh board:sync', async () => {
       prisma.workspaceMember.findUnique.mockResolvedValue({ role: 'MEMBER' });

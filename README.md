@@ -1,8 +1,10 @@
 # Task Tracker
 
 Full-stack Kanban task tracker built to production standards: typed end-to-end,
-tested, containerized, and deployed to Kubernetes. Not a tutorial clone — every
-phase includes a deliberately hunted edge case (see [Engineering notes](#engineering-notes)).
+tested, containerized, and deployed to Kubernetes. Built with the same rigor
+I'd apply to production code — see [Engineering notes](#engineering-notes)
+for real bugs found and fixed along the way, including a security
+vulnerability caught during review.
 
 ## Architecture
 
@@ -34,30 +36,31 @@ phase includes a deliberately hunted edge case (see [Engineering notes](#enginee
 
 ## Tech stack
 
-| Layer | Choice | Why |
-|---|---|---|
-| Backend | NestJS + TypeScript | Modular, DI-based, strong NestJS ecosystem |
-| ORM | Prisma | Type-safe queries, painless migrations |
-| Database | PostgreSQL 16 | Relational data with real foreign keys |
-| Auth | JWT access (in-memory) + refresh (httpOnly cookie) | Secure by design, not by accident |
-| Realtime | Socket.io via NestJS Gateway | Room-per-workspace, JWT-authenticated handshake |
-| Frontend | Next.js App Router | Server Components + Client Components, BFF pattern |
-| State | Zustand | Lightweight, works great with optimistic updates |
-| Drag & Drop | @dnd-kit | Built for reorder + cross-container moves |
-| Charts | Recharts + D3 | Standard charts + hand-rolled activity heatmap |
-| Containers | Docker (multi-stage) | Small production images (~150 MB) |
-| Orchestration | Kubernetes (Helm chart) | StatefulSet, Ingress, HPA, init containers |
-| CI | GitHub Actions | Lint + type-check + test + Docker build on push |
+| Layer         | Choice                                             | Why                                                |
+| ------------- | -------------------------------------------------- | -------------------------------------------------- |
+| Backend       | NestJS + TypeScript                                | Modular, DI-based, strong NestJS ecosystem         |
+| ORM           | Prisma                                             | Type-safe queries, painless migrations             |
+| Database      | PostgreSQL 16                                      | Relational data with real foreign keys             |
+| Auth          | JWT access (in-memory) + refresh (httpOnly cookie) | Secure by design, not by accident                  |
+| Realtime      | Socket.io via NestJS Gateway                       | Room-per-workspace, JWT-authenticated handshake    |
+| Frontend      | Next.js App Router                                 | Server Components + Client Components, BFF pattern |
+| State         | Zustand                                            | Lightweight, works great with optimistic updates   |
+| Drag & Drop   | @dnd-kit                                           | Built for reorder + cross-container moves          |
+| Charts        | Recharts + D3                                      | Standard charts + hand-rolled activity heatmap     |
+| Containers    | Docker (multi-stage)                               | Small production images (~150 MB)                  |
+| Orchestration | Kubernetes (Helm chart)                            | StatefulSet, Ingress, HPA, init containers         |
+| CI            | GitHub Actions                                     | Lint + type-check + test + Docker build on push    |
 
 ## Getting started
 
 ### Prerequisites
+
 - Node.js 24+
 - Docker Desktop
 
 ### Option 1: Docker Compose (quickest)
 
-```bash
+```
 docker compose up --build
 ```
 
@@ -65,7 +68,7 @@ Backend at `http://localhost:3001`, frontend at `http://localhost:3000`.
 
 ### Option 2: Local development
 
-```bash
+```
 # Start Postgres
 docker compose up -d postgres
 
@@ -85,7 +88,7 @@ npm run dev           # http://localhost:3000
 
 ### Option 3: Kubernetes (minikube)
 
-```bash
+```
 # Start cluster and build images
 minikube start --driver=docker --cpus=4 --memory=4096
 eval $(minikube docker-env)
@@ -106,7 +109,7 @@ minikube tunnel
 
 ### Seed data (optional)
 
-```bash
+```
 cd backend
 npx ts-node prisma/seed.ts
 ```
@@ -115,7 +118,7 @@ Creates 5,500+ tasks across projects for realistic analytics data.
 
 ## Running tests
 
-```bash
+```
 # Backend unit tests
 cd backend && npm test
 
@@ -128,7 +131,6 @@ cd frontend && npm test
 ```
 task-tracker/
 ├── .github/workflows/ci.yml    # GitHub Actions: test + build
-├── PROJECT_PLAN.md              # Phased plan with "Edge case" notes
 ├── docker-compose.yml           # Local: Postgres + backend + frontend
 ├── helm/task-tracker/           # Self-authored Helm chart
 │   ├── Chart.yaml
@@ -157,8 +159,9 @@ task-tracker/
 
 ## Engineering notes
 
-These are the deliberate edge cases hunted down in each phase — the part
-worth walking through in a design review.
+Notes on specific engineering problems encountered during development and
+how they were solved — the details worth walking through if you're curious
+about the reasoning.
 
 ### Phase 1 — Refresh token replay after logout
 
@@ -206,9 +209,9 @@ local store, ensuring consistency regardless of missed events.
 
 ### Phase 5 — Optimistic update rollback on API failure
 
-**Problem:** When a card is dragged and the backend request fails (e.g. server
-down), the card stays in the wrong column with no indication of failure —
-the UI lies about the server state.
+**Problem:** When a card is dragged and the backend request fails (e.g.
+server down), the card stays in the wrong column with no indication of
+failure — the UI lies about the server state.
 
 **Fix:** `board-store` saves a snapshot before every optimistic move. On API
 error, it rolls back to the snapshot and surfaces an error message. Tested
@@ -217,9 +220,8 @@ by simulating API failures in the store tests.
 ### Phase 6 — Sequential scan on activity query
 
 **Problem:** The `activity-over-time` endpoint with `date_trunc` and
-`generate_series` performed a sequential scan on the `tasks` table.
-With 5,500+ seeded tasks, `EXPLAIN ANALYZE` showed the query scanning
-every row.
+`generate_series` performed a sequential scan on the `tasks` table. With
+5,500+ seeded tasks, `EXPLAIN ANALYZE` showed the query scanning every row.
 
 **Fix:** Added `@@index([projectId, createdAt])` composite index to the
 Task model. The planner now uses an Index Scan when the table is large
@@ -255,19 +257,18 @@ pods. The backend init-container only checks TCP port (`nc -z postgres 5432`),
 which opens as soon as Postgres starts — before the schema exists. The
 readiness probe (`/health/ready`) does `SELECT 1`, which also succeeds on
 an empty database. Result: backend pods become Ready and start receiving
-traffic before migrations finish, causing `relation "workspaces" does not
-exist` errors.
+traffic before migrations finish, causing `relation "workspaces" does not exist` errors.
 
 **Fix:** Added a second init-container `wait-for-migrations` that runs
-`prisma migrate status` in a loop and waits until it reports "Database schema
-is up to date." The backend's main container only starts after both Postgres
-TCP connectivity AND schema readiness are confirmed. This is a deeper version
-of the same class of problem — TCP port open ≠ schema exists.
+`prisma migrate status` in a loop and waits until it reports "Database
+schema is up to date." The backend's main container only starts after both
+Postgres TCP connectivity AND schema readiness are confirmed. This is a
+deeper version of the same class of problem — TCP port open ≠ schema exists.
 
 ## Bugs found during development
 
-Real bugs discovered during development — not contrived "Edge case" exercises
-but genuine mistakes caught through manual testing and code review.
+Real bugs discovered during development — genuine mistakes caught through
+manual testing and code review.
 
 ### IDOR in task reorder endpoint
 
@@ -299,8 +300,8 @@ board too, grouped into a column by its status even though it belonged to a
 different project entirely.
 
 **Root cause:** The WebSocket gateway broadcasts task events to a
-`workspace:{id}` room, not scoped per project — every member connected to any
-project within that workspace receives every task event for the whole
+`workspace:{id}` room, not scoped per project — every member connected to
+any project within that workspace receives every task event for the whole
 workspace. The frontend's socket handlers (`task:created`, `task:updated`,
 `task:moved`, `task:deleted`, `board:sync`) applied every incoming event to
 the board store unconditionally, with no check that the event actually

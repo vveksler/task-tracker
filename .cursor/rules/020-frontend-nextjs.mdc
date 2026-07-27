@@ -44,8 +44,7 @@ frontend/
   it locally.
 - Optimistic updates: on drag end, update the Zustand store immediately, fire
   the API call, and on failure roll back to the last known-good state with a
-  visible toast/error — never fail silently (see PROJECT_PLAN.md Phase 5
-  "Edge case").
+  visible toast/error — never fail silently.
 
 # Data fetching & types
 
@@ -68,5 +67,4 @@ frontend/
 - One Socket.io client instance (`lib/socket.ts`), connected once per
   workspace the user is viewing, disconnected on unmount.
 - On reconnect (the socket's `connect` event firing again after a drop),
-  refetch the current board state rather than assuming no events were missed
-  — see PROJECT_PLAN.md Phase 4 "Edge case".
+  refetch the current board state rather than assuming no events were missed.

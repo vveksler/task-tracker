@@ -58,9 +58,8 @@ export class AnalyticsService {
    * Uses raw SQL with date_trunc for proper time bucketing —
    * Prisma doesn't support date grouping natively.
    *
-   * EDGE CASE (Phase 6): this is the query to EXPLAIN ANALYZE.
-   * Without an index on tasks.createdAt (filtered by projectId),
-   * this does a sequential scan on 5000+ rows.
+   * Relies on @@index([projectId, createdAt]) — without it,
+   * EXPLAIN ANALYZE shows a sequential scan on large datasets.
    */
   async activity(workspaceId: string, days: number): Promise<ActivityRow[]> {
     const rows = await this.prisma.$queryRaw<

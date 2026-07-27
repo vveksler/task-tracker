@@ -5,17 +5,13 @@ alwaysApply: true
 
 # Project context
 
-This is a full-stack Kanban task tracker built as a production-oriented
-project, not a disposable prototype. It is deliberately built to production
-standards: typed end-to-end, tested, containerized, deployed to Kubernetes.
+Full-stack Kanban task tracker built to production standards: typed
+end-to-end, tested, containerized, deployed to Kubernetes.
 
 Stack: NestJS + Prisma + PostgreSQL (backend), Next.js App Router + Zustand +
 dnd-kit (frontend), Socket.io (realtime), Docker + Kubernetes (deploy).
 
-See `PROJECT_PLAN.md` at the repo root for the full phased plan, including a
-"Edge case" note per phase — a specific edge case to deliberately find and fix.
-When implementing a phase, read its "Edge case" note and treat it as a
-requirement, not an afterthought.
+See `PROJECT_PLAN.md` at the repo root for the phased development plan.
 
 # How to work with me
 
@@ -23,9 +19,8 @@ requirement, not an afterthought.
   TypeScript, competent but not deep in backend — deepening NestJS skills on
   purpose. Explain backend-specific NestJS/Prisma idioms briefly when you
   introduce them; don't explain basic JS/TS/React concepts.
-- Prefer explicit code over clever abstractions. I will be explaining every
-  part of this codebase in design reviews — don't generate anything I can't
-  defend line by line.
+- Prefer explicit code over clever abstractions. Don't generate anything I
+  can't defend line by line.
 - When you make an architectural choice with real trade-offs (e.g. optimistic
   locking vs fractional indexing, cookie vs header auth), state the
   alternatives and why you picked one, in a short comment or in your reply —

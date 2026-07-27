@@ -16,8 +16,7 @@ alwaysApply: true
   or `https://` before rendering — reject `javascript:` and other schemes.
 - All backend endpoints that mutate data must re-check authorization
   server-side, even if the frontend already hides the corresponding UI
-  control. Client-side route/button hiding is UX, not security — see
-  PROJECT_PLAN.md Phase 2 "Edge case".
+  control. Client-side route/button hiding is UX, not security.
 - CORS on the NestJS backend must whitelist the specific frontend origin, not
   `*`, since cookies (`credentials: true`) are in use.
 - Never log JWTs, passwords, or refresh tokens, even at debug level.

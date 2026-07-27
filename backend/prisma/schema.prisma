@@ -96,8 +96,8 @@ model Task {
   description String?
   status      TaskStatus @default(TODO)
   // Fractional index for drag-and-drop ordering within a column.
-  // See PROJECT_PLAN.md Phase 3 "Edge case" — this field is where the
-  // concurrent-reorder race condition lives; treat writes to it carefully.
+  // Concurrent writes must use a Serializable transaction (see reorder
+  // in TasksService) to avoid midpoint collisions.
   order       Float      @default(0)
 
   projectId  String

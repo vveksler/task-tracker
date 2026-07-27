@@ -64,11 +64,9 @@ describe('WorkspaceRolesGuard', () => {
   });
 
   /**
-   * EDGE CASE (Phase 2): a MEMBER calling an ADMIN-only endpoint directly.
-   *
-   * The UI hides the "remove member" button for non-admins, but the API
-   * must enforce it independently. This test proves the guard rejects a
-   * MEMBER when @Roles(ADMIN) is required — returning 403, not 200.
+   * A MEMBER calling an ADMIN-only endpoint directly: the UI may hide
+   * the button, but the API must enforce it independently. This test
+   * proves the guard rejects a MEMBER when @Roles(ADMIN) is required.
    */
   it('should reject a MEMBER when @Roles(ADMIN) is required', async () => {
     const ctx = createMockContext(

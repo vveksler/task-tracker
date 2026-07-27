@@ -11,7 +11,7 @@ import { apiFetch, ApiError } from '@/lib/api-client';
  * When a card is dragged, we immediately update the local state
  * (so the UI feels instant), then fire the API request. If the
  * request fails, we rollback to the pre-drag snapshot and show
- * a toast-like error. This is the Phase 5 "Edge case."
+ * a toast-like error.
  */
 
 interface BoardState {
@@ -146,7 +146,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
           },
         );
       } catch (err) {
-        // EDGE CASE (Phase 5): rollback on failure
+        // Rollback optimistic update on API failure
         set({
           tasks: snapshot,
           error:

@@ -1,124 +1,84 @@
-# Task Tracker — Project Plan
+# Task Tracker — Development Plan
 
-A full-stack Kanban-style task tracker (Jira/Linear-lite) built to demonstrate
-production-grade full-stack + DevOps skills to production standards: NestJS backend,
-Next.js frontend, real-time updates, data-viz dashboard, and a self-authored
-Kubernetes deployment.
-
-## Why this project exists
-
-Not a tutorial clone. The goal is to be able to talk in depth, in a design review,
-about specific engineering decisions, trade-offs, and bugs found and fixed —
-not just list technologies. Every phase below has a "Edge case" section: a
-deliberate edge case to go looking for, because AI-generated code almost never
-surfaces these on its own. Find it, understand it, fix it, write one paragraph
-about it. That paragraph is worth more than the feature itself.
+Phased plan for building a full-stack Kanban task tracker to production
+standards: NestJS backend, Next.js frontend, real-time updates, analytics
+dashboard, and a self-authored Kubernetes deployment.
 
 ## Tech stack & why
 
 | Layer | Choice | Why |
 |---|---|---|
-| Backend | NestJS + TypeScript | Modular, DI-based — familiar coming from Spring Boot. In-demand on the Israeli market (Node.js is a "must" in most full-stack postings). |
-| ORM | Prisma | Type-safe queries, painless migrations, current standard for NestJS projects. |
-| Database | PostgreSQL | Relational data (users, workspaces, projects, tasks) with real foreign keys — the right tool, not a resume-driven choice. |
-| Auth | JWT (access in memory) + refresh token (httpOnly cookie) | Matches the security model already researched — demonstrable on-purpose decision, not a default. |
-| Realtime | Socket.io via NestJS Gateway | Real-time board updates — rare in portfolio projects, a genuine differentiator. |
-| Frontend | Next.js (App Router) | Server Components for data-heavy pages, Client Components for interactive board. Full-stack-in-one-framework story. |
-| State (client) | Zustand | Lightweight UI state (drag state, optimistic updates) — already used in a real feature at work. |
-| Drag & drop | @dnd-kit/core + @dnd-kit/sortable | Purpose-built for reorder/move-between-containers (see earlier comparison with react-flow). |
-| Charts | Recharts (+ one hand-rolled D3 widget) | Recharts for standard charts, one D3 widget to prove deeper visualization skill — directly relevant to NVIDIA-style postings. |
-| Containers | Docker (multi-stage builds) | Small, production-style images. |
-| Orchestration | Kubernetes (self-authored Helm chart) | Hands-on cloud-native practice — liveness/readiness probes, HPA, Ingress, ConfigMap/Secret. |
-| CI | GitHub Actions | Test-on-push, optional image build. |
+| Backend | NestJS + TypeScript | Modular, DI-based architecture with a strong NestJS ecosystem |
+| ORM | Prisma | Type-safe queries, painless migrations |
+| Database | PostgreSQL | Relational data with real foreign keys |
+| Auth | JWT (access in memory) + refresh token (httpOnly cookie) | Secure by design — short-lived access token, revocable refresh |
+| Realtime | Socket.io via NestJS Gateway | Room-per-workspace board updates |
+| Frontend | Next.js (App Router) | Server Components for data pages, Client Components for the board |
+| State (client) | Zustand | Lightweight UI state for drag and optimistic updates |
+| Drag & drop | @dnd-kit/core + @dnd-kit/sortable | Reorder and cross-container moves |
+| Charts | Recharts (+ one hand-rolled D3 widget) | Standard charts plus a custom activity heatmap |
+| Containers | Docker (multi-stage builds) | Small production-style images |
+| Orchestration | Kubernetes (self-authored Helm chart) | Liveness/readiness probes, HPA, Ingress, ConfigMap/Secret |
+| CI | GitHub Actions | Test-on-push, Docker image build |
 
 ## Phases
 
-### Phase 0 — Environment setup (this kit)
+### Phase 0 — Environment setup
 - Repo skeleton, Cursor rules, Prisma schema, docker-compose for local Postgres.
-- **Definition of done:** `docker compose up`, `npx prisma migrate dev`, backend
-  boots, `/health/live` returns 200.
+- **Done when:** `docker compose up`, `npx prisma migrate dev`, backend boots,
+  `/health/live` returns 200.
 
 ### Phase 1 — Auth module
-- Register, login, JWT access token (returned in body), refresh token (httpOnly
-  Secure SameSite=Strict cookie), logout (revoke refresh token), NestJS Guards.
-- **Edge case:** what happens if the refresh token is reused after logout
-  (replay)? Does your revocation actually block it, or does the token still
-  validate because you only deleted a DB row but didn't check it? Test it
-  manually — call refresh with a logged-out token and confirm you get 401,
-  not a fresh access token.
+- Register, login, JWT access token (body), refresh token (httpOnly Secure
+  SameSite=Strict cookie), logout (revoke refresh token), NestJS Guards.
+- Refresh must reject revoked/expired tokens; support a short grace period for
+  concurrent Server Component refresh races during rotation.
 
 ### Phase 2 — Workspaces, Projects, RBAC
 - Workspace CRUD, invite members, roles (`admin` / `member`), custom `@Roles()`
   guard.
-- **Edge case:** a `member` calling the "remove workspace member" endpoint
-  directly via curl/Postman, bypassing the UI. Does the guard actually block
-  it, or does the UI just hide the button while the API stays open? This is
-  the single most common gap between "looks secure" and "is secure."
+- Every mutating endpoint re-checks authorization server-side — UI hiding is
+  UX, not security.
 
 ### Phase 3 — Tasks & Kanban API
-- Task CRUD, status field, `order` field for board position, a dedicated
-  `PATCH /tasks/:id/reorder` endpoint (not a generic PATCH).
-- **Edge case:** the race condition. Open two browser tabs, drag two different
-  cards into the same column at nearly the same time. Watch what happens to
-  `order` values — do they collide? Fix it with either a DB transaction that
-  re-reads and shifts order values atomically, or a fractional-index scheme
-  (store order as a float, insert between two existing values instead of
-  reindexing everything). Write down which you chose and why.
+- Task CRUD, status field, `order` field for board position, dedicated
+  `PATCH /tasks/:id/reorder` (not a generic PATCH).
+- Concurrent reorders must not collide: fractional indexing + Serializable
+  transaction with retry on `P2034`.
 
 ### Phase 4 — Realtime (WebSocket Gateway)
-- Socket.io Gateway, `task:move` event, room-per-workspace so events don't
-  leak across workspaces.
-- **Edge case:** what happens on reconnect after a dropped connection (turn off
-  wifi for 10 seconds)? Does the client silently miss the events that happened
-  while disconnected, leaving the board stale until a manual refresh? Decide
-  on a reconciliation strategy (refetch board state on reconnect) and
-  implement it — don't leave it broken.
+- Socket.io Gateway, task events, room-per-workspace so events don't leak
+  across workspaces.
+- On reconnect / rejoin, send full `board:sync` so the client never keeps a
+  stale view after a dropped connection.
 
 ### Phase 5 — Frontend core
 - Auth pages, workspace/project list (Server Components), Kanban board
-  (Client Component), dnd-kit integration, Zustand store for board UI state.
-- **Edge case:** optimistic update rollback. When you drag a card and the
-  server request fails (simulate by killing the backend mid-drag), does the
-  card silently stay in the wrong column, or does it snap back with a visible
-  error? Undone optimistic updates are the #1 thing that makes an app feel
-  broken without an obvious bug report.
+  (Client Component), dnd-kit, Zustand store for board UI state.
+- Optimistic updates with rollback and a visible error when the API fails.
 
 ### Phase 6 — Analytics dashboard
-- `/workspaces/:id/analytics/*` endpoints (status breakdown, activity over
-  time, load by assignee), Prisma `groupBy` + one raw SQL query for
-  time-bucketed activity, Recharts visualizations, one hand-rolled D3 widget
-  (e.g. an activity heatmap).
-- **Edge case:** query cost. Seed the DB with 5,000+ tasks (write a seed
-  script), run `EXPLAIN ANALYZE` on the activity-over-time query, see if it's
-  doing a sequential scan. Add the missing index, re-run, note the before/after
-  timing. This single exercise is a strong, concrete engineering case study.
+- `/workspaces/:id/analytics/*` (status breakdown, activity over time, load by
+  assignee), Prisma `groupBy` + raw SQL for time-bucketed activity, Recharts,
+  one D3 heatmap.
+- Index the activity query path (`projectId`, `createdAt`) after validating
+  with `EXPLAIN ANALYZE` on seeded data.
 
 ### Phase 7 — Containerization
-- Multi-stage Dockerfiles for backend and frontend, `/health/live` and
-  `/health/ready` endpoints (`@nestjs/terminus`), `docker-compose.yml` wiring
-  everything together locally.
-- **Edge case:** a readiness probe that lies. Make `/health/ready` actually
-  check the DB connection, not just return 200 unconditionally — then kill
-  the DB and confirm the pod would correctly report not-ready instead of
-  serving broken requests.
+- Multi-stage Dockerfiles, `/health/live` and `/health/ready` (`@nestjs/terminus`
+  with a real DB check), `docker-compose.yml` for local full stack.
 
 ### Phase 8 — Kubernetes
-- Self-authored Helm chart: Deployments (frontend + backend), Service,
-  Ingress (path-based routing), ConfigMap + Secret, HPA, PostgreSQL
-  StatefulSet + PVC. Run on `minikube` locally.
-- **Edge case:** a pod that crash-loops because the app tries to connect to
-  Postgres before it's ready. Fix with an init container or proper
-  readiness-gated startup — and be able to explain why this is a common
-  real-world problem, not a contrived one.
+- Self-authored Helm chart: Deployments (frontend + backend), Service, Ingress,
+  ConfigMap + Secret, HPA, PostgreSQL StatefulSet + PVC. Run on `minikube`.
+- Init containers wait for Postgres TCP and for migrations to finish before
+  the backend serves traffic.
 
-### Phase 9 — CI (optional but strong)
+### Phase 9 — CI
 - GitHub Actions: run backend + frontend tests on push, build Docker images.
 
-## What "done" looks like for the portfolio
+## Definition of done
 
-- A deployed (or at least locally demoable via minikube) full-stack app.
-- A README with the architecture diagram and a short "Engineering notes"
-  section listing the 5–6 edge cases you hunted down, each in 2–3 sentences:
-  what could have gone wrong, why, and what you did about it.
-- That notes section is the actual engineering notes — more valuable than the
-  code itself.
+- Full-stack app runnable via Docker Compose and demoable on minikube.
+- README with architecture diagram and engineering notes covering the main
+  edge cases found and fixed during development.

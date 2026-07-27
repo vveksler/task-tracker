@@ -231,10 +231,8 @@ describe('AuthService', () => {
     });
 
     /**
-     * EDGE CASE (Phase 1): Refresh token replay after logout.
-     *
-     * Scenario: user logs out (revokedAt set, no replacedByHash),
-     * then an attacker reuses the token. The three-step check
+     * Refresh token replay after logout: user logs out (revokedAt set,
+     * no replacedByHash), then the token is reused. The three-step check
      * detects revokedAt + no replacement → "Token has been revoked".
      */
     it('should reject a revoked token without replacedByHash (logout)', async () => {
