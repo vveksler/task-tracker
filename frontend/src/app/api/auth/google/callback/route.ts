@@ -8,10 +8,19 @@ import {
 } from '../../cookie-config';
 
 const OAUTH_STATE_COOKIE = 'oauth_state';
-const APP_ORIGIN = process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000';
 
-function loginErrorRedirect(code: string) {
-  return NextResponse.redirect(new URL(`/auth/login?error=${code}`, APP_ORIGIN));
+function appOrigin(req: NextRequest): string {
+  return (
+    process.env['APP_URL'] ??
+    process.env['NEXT_PUBLIC_APP_URL'] ??
+    req.nextUrl.origin
+  );
+}
+
+function loginErrorRedirect(req: NextRequest, code: string) {
+  return NextResponse.redirect(
+    new URL(`/auth/login?error=${code}`, appOrigin(req)),
+  );
 }
 
 export async function GET(req: NextRequest) {
@@ -25,11 +34,12 @@ export async function GET(req: NextRequest) {
   cookieStore.delete(OAUTH_STATE_COOKIE);
 
   if (oauthError) {
-    return loginErrorRedirect('google');
+    return loginErrorRedirect(req, 'google');
   }
 
+  // Direct hits without a Google code/state always fail — start at /api/auth/google.
   if (!code || !state || !expectedState || state !== expectedState) {
-    return loginErrorRedirect('google');
+    return loginErrorRedirect(req, 'google');
   }
 
   try {
@@ -40,11 +50,13 @@ export async function GET(req: NextRequest) {
     });
 
     if (!backendRes.ok) {
-      return loginErrorRedirect('google');
+      return loginErrorRedirect(req, 'google');
     }
 
     const data = (await backendRes.json()) as BackendAuthResponse;
-    const response = NextResponse.redirect(new URL('/workspaces', APP_ORIGIN));
+    const response = NextResponse.redirect(
+      new URL('/workspaces', appOrigin(req)),
+    );
     response.cookies.set(
       REFRESH_COOKIE_NAME,
       data.refreshToken,
@@ -52,6 +64,6 @@ export async function GET(req: NextRequest) {
     );
     return response;
   } catch {
-    return loginErrorRedirect('google');
+    return loginErrorRedirect(req, 'google');
   }
 }

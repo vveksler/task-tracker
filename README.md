@@ -136,6 +136,7 @@ Railway does **not** use Helm `values.yaml`. Set Variables on each service in th
 | `NEXT_PUBLIC_API_URL` | Backend public URL (also set as Docker **build** arg) |
 | `NEXT_PUBLIC_WS_URL` | Same as API URL (Socket.io) |
 | `NEXT_PUBLIC_APP_URL` | Frontend public URL |
+| `APP_URL` | Same as above (runtime; preferred for OAuth redirects) |
 | `BACKEND_INTERNAL_URL` | Private Railway URL to backend if available |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CALLBACK_URL` | Same callback as backend (secret stays on Nest) |
 | `COOKIE_SECURE` | omit or `true` on HTTPS |

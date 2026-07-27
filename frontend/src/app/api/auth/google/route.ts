@@ -1,21 +1,29 @@
 import { randomBytes } from 'crypto';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 const OAUTH_STATE_COOKIE = 'oauth_state';
 const OAUTH_STATE_MAX_AGE = 10 * 60; // 10 minutes
 
-export async function GET() {
+function appOrigin(req: NextRequest): string {
+  // Prefer the live request host (works on Railway without rebuild).
+  // NEXT_PUBLIC_* is baked at Docker build time and often stays localhost.
+  return (
+    process.env['APP_URL'] ??
+    process.env['NEXT_PUBLIC_APP_URL'] ??
+    req.nextUrl.origin
+  );
+}
+
+export async function GET(req: NextRequest) {
   const clientId = process.env['GOOGLE_CLIENT_ID'] ?? '';
+  const origin = appOrigin(req);
   const callbackUrl =
     process.env['GOOGLE_CALLBACK_URL'] ??
-    'http://localhost:3000/api/auth/google/callback';
+    `${origin}/api/auth/google/callback`;
 
   if (!clientId) {
     return NextResponse.redirect(
-      new URL(
-        '/auth/login?error=google_not_configured',
-        process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000',
-      ),
+      new URL('/auth/login?error=google_not_configured', origin),
     );
   }
 
