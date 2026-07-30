@@ -32,7 +32,12 @@ export const mailConfig = registerAs('mail', () => ({
   resendApiKey: process.env['RESEND_API_KEY'] ?? '',
 }));
 
+export const redisConfig = registerAs('redis', () => ({
+  url: process.env['REDIS_URL'] ?? '',
+}));
+
 export type AppConfig = ReturnType<typeof appConfig>;
 export type JwtConfig = ReturnType<typeof jwtConfig>;
 export type GoogleConfig = ReturnType<typeof googleConfig>;
 export type MailConfig = ReturnType<typeof mailConfig>;
+export type RedisConfig = ReturnType<typeof redisConfig>;

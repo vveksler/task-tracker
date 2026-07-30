@@ -3,13 +3,16 @@ import {
   MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
+import { Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { createAdapter } from '@socket.io/redis-adapter';
+import { createClient, type RedisClientType } from 'redis';
 import { Server, Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
 import type { JwtPayload } from '../common/types/jwt-payload';
@@ -33,17 +36,72 @@ interface JoinPayload {
     credentials: true,
   },
 })
-export class TaskGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class TaskGateway
+  implements
+    OnGatewayInit,
+    OnGatewayConnection,
+    OnGatewayDisconnect,
+    OnModuleDestroy
+{
   @WebSocketServer()
   server!: Server;
 
   private readonly logger = new Logger(TaskGateway.name);
+  private pubClient: RedisClientType | null = null;
+  private subClient: RedisClientType | null = null;
 
   constructor(
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
   ) {}
+
+  /**
+   * Attach Redis adapter when REDIS_URL is set so emits reach clients on
+   * other Nest pods after HPA scale-out. Without Redis, Socket.io stays
+   * in-memory (correct for local single-process dev).
+   *
+   * Trade-off vs sticky-only: sticky keeps one client's socket on one pod,
+   * but HTTP reorder can still land on another pod — Redis pub/sub is what
+   * makes cross-pod broadcast correct. Sticky remains useful for Socket.io
+   * HTTP long-polling fallback.
+   */
+  async afterInit(server: Server): Promise<void> {
+    const redisUrl = this.config.get<string>('redis.url') ?? '';
+    if (!redisUrl) {
+      this.logger.warn(
+        'REDIS_URL not set — Socket.io using in-memory adapter (single instance only)',
+      );
+      return;
+    }
+
+    this.pubClient = createClient({ url: redisUrl });
+    this.subClient = this.pubClient.duplicate();
+
+    this.pubClient.on('error', (err: Error) => {
+      this.logger.error(`Redis pub client error: ${err.message}`);
+    });
+    this.subClient.on('error', (err: Error) => {
+      this.logger.error(`Redis sub client error: ${err.message}`);
+    });
+
+    await Promise.all([this.pubClient.connect(), this.subClient.connect()]);
+    server.adapter(createAdapter(this.pubClient, this.subClient));
+    this.logger.log('Socket.io Redis adapter attached');
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    await Promise.all([
+      this.pubClient?.quit().catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`Redis pub quit failed: ${message}`);
+      }),
+      this.subClient?.quit().catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`Redis sub quit failed: ${message}`);
+      }),
+    ]);
+  }
 
   /**
    * Authenticate on connection — client sends access token via

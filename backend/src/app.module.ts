@@ -1,6 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { appConfig, jwtConfig, googleConfig, mailConfig } from './config';
+import {
+  appConfig,
+  jwtConfig,
+  googleConfig,
+  mailConfig,
+  redisConfig,
+} from './config';
 import { PrismaModule } from './prisma/prisma.module';
 import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
@@ -15,7 +21,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, jwtConfig, googleConfig, mailConfig],
+      load: [appConfig, jwtConfig, googleConfig, mailConfig, redisConfig],
     }),
     PrismaModule,
     MailModule,

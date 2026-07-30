@@ -43,6 +43,13 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
     nginx.ingress.kubernetes.io/enable-websockets: "true"
+    # Sticky sessions: keep a client's Socket.io connection (esp. HTTP
+    # long-polling fallback) on the same backend pod. Cross-pod broadcast
+    # still requires the Redis adapter — sticky alone is not enough.
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/session-cookie-name: "task_tracker_affinity"
+    nginx.ingress.kubernetes.io/session-cookie-expires: "172800"
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "172800"
 spec:
   ingressClassName: {{ .Values.ingress.className }}
   rules:

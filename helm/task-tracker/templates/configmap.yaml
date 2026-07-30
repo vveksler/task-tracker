@@ -12,6 +12,8 @@ data:
   JWT_ACCESS_EXPIRES_IN: {{ .Values.backend.jwtAccessExpiresIn | quote }}
   # Backend is reachable within the cluster via its Service name
   BACKEND_INTERNAL_URL: "http://backend:{{ .Values.backend.port }}"
+  # Socket.io Redis adapter — pub/sub across HPA replicas
+  REDIS_URL: "redis://redis:{{ .Values.redis.port }}"
   FRONTEND_ORIGIN: {{ default (printf "http://%s" .Values.ingress.host) .Values.appUrl | quote }}
   # No TLS in minikube — cookies must not have Secure flag
   COOKIE_SECURE: "false"

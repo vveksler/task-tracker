@@ -16,6 +16,18 @@ postgres:
       cpu: 500m
       memory: 512Mi
 
+# ── Redis (Socket.io pub/sub between backend pods) ──
+redis:
+  image: redis:7-alpine
+  port: 6379
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
 # ── Backend (NestJS) ──
 backend:
   image: task-tracker-backend:latest

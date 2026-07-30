@@ -55,7 +55,13 @@ describe('TaskGateway', () => {
         { provide: JwtService, useValue: jwtService },
         {
           provide: ConfigService,
-          useValue: { get: jest.fn().mockReturnValue('test-secret') },
+          useValue: {
+            get: jest.fn((key: string) => {
+              if (key === 'jwt.accessSecret') return 'test-secret';
+              if (key === 'redis.url') return '';
+              return undefined;
+            }),
+          },
         },
         { provide: PrismaService, useValue: prisma },
       ],
@@ -63,6 +69,14 @@ describe('TaskGateway', () => {
 
     gateway = module.get(TaskGateway);
     gateway.server = mockServer as unknown as Server;
+  });
+
+  describe('afterInit', () => {
+    it('should skip Redis adapter when REDIS_URL is empty', async () => {
+      const adapter = jest.fn();
+      await gateway.afterInit({ adapter } as unknown as Server);
+      expect(adapter).not.toHaveBeenCalled();
+    });
   });
 
   describe('handleConnection', () => {

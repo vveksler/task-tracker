@@ -16,6 +16,18 @@ services:
       timeout: 5s
       retries: 5
 
+  # Socket.io pub/sub bus between backend instances.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   backend:
     build:
       context: ./backend
@@ -25,6 +37,7 @@ services:
       - "3001:3001"
     environment:
       DATABASE_URL: "postgresql://tracker:tracker@postgres:5432/task_tracker?schema=public"
+      REDIS_URL: "redis://redis:6379"
       JWT_ACCESS_SECRET: "docker-access-secret-change-in-prod"
       JWT_ACCESS_EXPIRES_IN: "15m"
       JWT_REFRESH_SECRET: "docker-refresh-secret-change-in-prod"
@@ -34,6 +47,8 @@ services:
       NODE_ENV: "production"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3001/health/ready || exit 1"]
