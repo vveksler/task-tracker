@@ -20,6 +20,10 @@ import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { ReorderTaskDto } from './dto/reorder-task.dto';
+import {
+  BulkDeleteTasksDto,
+  BulkUpdateTasksDto,
+} from './dto/bulk-update-tasks.dto';
 
 @ApiTags('tasks')
 @ApiBearerAuth()
@@ -36,6 +40,31 @@ export class TasksController {
     @Body() dto: CreateTaskDto,
   ) {
     return this.tasksService.create(workspaceId, dto);
+  }
+
+  // Static path before :id routes.
+  @Post('bulk-update')
+  @ApiOperation({
+    summary:
+      'Bulk-update tasks in this workspace matching a filter (chat suggest+confirm)',
+  })
+  bulkUpdate(
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
+    @Body() dto: BulkUpdateTasksDto,
+  ) {
+    return this.tasksService.bulkUpdate(workspaceId, dto);
+  }
+
+  @Post('bulk-delete')
+  @ApiOperation({
+    summary:
+      'Bulk-delete tasks in this workspace matching a filter (chat suggest+confirm)',
+  })
+  bulkDelete(
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
+    @Body() dto: BulkDeleteTasksDto,
+  ) {
+    return this.tasksService.bulkDelete(workspaceId, dto);
   }
 
   @Get()

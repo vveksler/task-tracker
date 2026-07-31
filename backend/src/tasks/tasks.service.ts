@@ -6,6 +6,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Prisma, TaskStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TaskGateway } from '../gateway/task.gateway';
@@ -13,6 +14,11 @@ import type { TaskPayload } from '../gateway/gateway.events';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { ReorderTaskDto } from './dto/reorder-task.dto';
+import {
+  BulkDeleteTasksDto,
+  BulkTasksFilterDto,
+  BulkUpdateTasksDto,
+} from './dto/bulk-update-tasks.dto';
 
 const TASK_SELECT = {
   id: true,
@@ -31,6 +37,7 @@ const TASK_SELECT = {
 export class TasksService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
     @Optional() @Inject(TaskGateway) private readonly gateway?: TaskGateway,
   ) {}
 
@@ -83,6 +90,14 @@ export class TasksService {
     );
 
     this.emit('created', created);
+    // Fire-and-forget embedding re-index — listener must not block save.
+    // Listener checks workspace.aiAssistantEnabled before any paid API call.
+    this.eventEmitter.emit('task.contentChanged', {
+      workspaceId: created.project.workspaceId,
+      taskId: created.id,
+      title: created.title,
+      description: created.description,
+    });
     return created;
   }
 
@@ -178,7 +193,240 @@ export class TasksService {
     });
 
     this.emit('updated', updated);
+    // Re-index only when searchable content actually changed.
+    // Listener checks workspace.aiAssistantEnabled before any paid API call.
+    if (dto.title !== undefined || dto.description !== undefined) {
+      this.eventEmitter.emit('task.contentChanged', {
+        workspaceId: updated.project.workspaceId,
+        taskId: updated.id,
+        title: updated.title,
+        description: updated.description,
+      });
+    }
     return updated;
+  }
+
+  /**
+   * Apply a patch to all tasks in this workspace matching the filter.
+   * Filter must include at least one field (enforced by DTO) so we never
+   * mass-update an entire workspace by accident.
+   */
+  async bulkUpdate(workspaceId: string, dto: BulkUpdateTasksDto) {
+    const { filter, patch } = dto;
+    const where = await this.buildBulkWhere(workspaceId, filter);
+
+    if (patch.assigneeId !== undefined) {
+      await this.validateAssignee(workspaceId, patch.assigneeId);
+    }
+
+    const matched = await this.prisma.task.findMany({
+      where,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        status: true,
+        project: { select: { workspaceId: true } },
+      },
+    });
+
+    if (matched.length === 0) {
+      return { updatedCount: 0, taskIds: [] as string[] };
+    }
+
+    const data: Prisma.TaskUncheckedUpdateManyInput = {};
+    if (patch.status !== undefined) data.status = patch.status;
+    if (patch.title !== undefined) data.title = patch.title;
+    if (patch.description !== undefined) data.description = patch.description;
+    if (patch.assigneeId !== undefined) data.assigneeId = patch.assigneeId;
+
+    await this.prisma.task.updateMany({
+      where: { id: { in: matched.map((t) => t.id) } },
+      data,
+    });
+
+    const contentChanged =
+      patch.title !== undefined || patch.description !== undefined;
+
+    for (const task of matched) {
+      const nextTitle = patch.title ?? task.title;
+      const nextDescription =
+        patch.description !== undefined ? patch.description : task.description;
+
+      if (this.gateway) {
+        const full = await this.prisma.task.findUnique({
+          where: { id: task.id },
+          select: TASK_SELECT,
+        });
+        if (full) this.emit('updated', full);
+      }
+
+      if (contentChanged) {
+        this.eventEmitter.emit('task.contentChanged', {
+          workspaceId,
+          taskId: task.id,
+          title: nextTitle,
+          description: nextDescription,
+        });
+      }
+    }
+
+    const taskIds = matched.map((t) => t.id);
+    return {
+      updatedCount: taskIds.length,
+      taskIds: taskIds.slice(0, 100),
+    };
+  }
+
+  /**
+   * Delete all tasks matching the filter within this workspace.
+   * Same filter rules as bulkUpdate (projectId/projectName alone is enough).
+   */
+  async bulkDelete(workspaceId: string, dto: BulkDeleteTasksDto) {
+    const where = await this.buildBulkWhere(workspaceId, dto.filter);
+
+    const matched = await this.prisma.task.findMany({
+      where,
+      select: {
+        id: true,
+        projectId: true,
+        project: { select: { workspaceId: true } },
+      },
+    });
+
+    if (matched.length === 0) {
+      return { deletedCount: 0, taskIds: [] as string[] };
+    }
+
+    const taskIds = matched.map((t) => t.id);
+    await this.prisma.task.deleteMany({
+      where: { id: { in: taskIds } },
+    });
+
+    for (const task of matched) {
+      this.gateway?.emitTaskDeleted(
+        task.project.workspaceId,
+        task.id,
+        task.projectId,
+      );
+    }
+
+    return {
+      deletedCount: taskIds.length,
+      taskIds: taskIds.slice(0, 100),
+    };
+  }
+
+  /**
+   * Build a Prisma where clause for bulk task ops.
+   * Always scoped to workspaceId; resolves projectName → projectId.
+   */
+  private async buildBulkWhere(
+    workspaceId: string,
+    filter: BulkTasksFilterDto,
+  ): Promise<Prisma.TaskWhereInput> {
+    let resolvedProjectId = filter.projectId?.trim() || undefined;
+
+    if (filter.projectName?.trim()) {
+      const name = filter.projectName.trim();
+      const projects = await this.prisma.project.findMany({
+        where: {
+          workspaceId,
+          name: { equals: name, mode: 'insensitive' },
+        },
+        select: { id: true },
+      });
+
+      if (projects.length === 0) {
+        // No match — return an impossible predicate (no accidental wide delete).
+        return {
+          project: { workspaceId },
+          id: '00000000-0000-0000-0000-000000000000',
+        };
+      }
+
+      if (projects.length > 1) {
+        if (
+          resolvedProjectId &&
+          projects.some((p) => p.id === resolvedProjectId)
+        ) {
+          // keep resolvedProjectId
+        } else {
+          throw new BadRequestException(
+            `Multiple projects named "${name}" — specify projectId`,
+          );
+        }
+      } else {
+        const onlyId = projects[0]!.id;
+        if (resolvedProjectId && resolvedProjectId !== onlyId) {
+          throw new BadRequestException(
+            'projectId does not match projectName in this workspace',
+          );
+        }
+        resolvedProjectId = onlyId;
+      }
+    }
+
+    if (resolvedProjectId) {
+      const project = await this.prisma.project.findUnique({
+        where: { id: resolvedProjectId },
+        select: { workspaceId: true },
+      });
+      if (!project || project.workspaceId !== workspaceId) {
+        throw new ForbiddenException(
+          'Project does not belong to this workspace',
+        );
+      }
+    }
+
+    const where: Prisma.TaskWhereInput = {
+      project: resolvedProjectId
+        ? { workspaceId, id: resolvedProjectId }
+        : { workspaceId },
+    };
+
+    if (filter.titleContains?.trim()) {
+      where.title = {
+        contains: filter.titleContains.trim(),
+        mode: 'insensitive',
+      };
+    }
+
+    if (filter.descriptionContains?.trim()) {
+      where.description = {
+        contains: filter.descriptionContains.trim(),
+        mode: 'insensitive',
+      };
+    }
+
+    if (filter.statusIn && filter.statusIn.length > 0) {
+      where.status = { in: filter.statusIn };
+    }
+
+    if (filter.assigneeNameContains?.trim()) {
+      const q = filter.assigneeNameContains.trim();
+      where.assignee = {
+        OR: [
+          { name: { contains: q, mode: 'insensitive' } },
+          { email: { contains: q, mode: 'insensitive' } },
+        ],
+      };
+    }
+
+    // When both titleContains and descriptionContains are set, match tasks
+    // where EITHER field matches (OR) — closer to "tasks about auth".
+    if (filter.titleContains?.trim() && filter.descriptionContains?.trim()) {
+      const titleQ = filter.titleContains.trim();
+      const descQ = filter.descriptionContains.trim();
+      delete where.title;
+      delete where.description;
+      where.OR = [
+        { title: { contains: titleQ, mode: 'insensitive' } },
+        { description: { contains: descQ, mode: 'insensitive' } },
+      ];
+    }
+
+    return where;
   }
 
   async remove(workspaceId: string, taskId: string) {

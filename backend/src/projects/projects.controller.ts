@@ -18,6 +18,7 @@ import { WorkspaceRolesGuard } from '../common/guards/workspace-roles.guard';
 import { ProjectsService } from './projects.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
+import { DedupeProjectsDto } from './dto/dedupe-projects.dto';
 
 @ApiTags('projects')
 @ApiBearerAuth()
@@ -33,6 +34,20 @@ export class ProjectsController {
     @Body() dto: CreateProjectDto,
   ) {
     return this.projectsService.create(workspaceId, dto);
+  }
+
+  // Static path before :id routes.
+  @Post('dedupe')
+  @Roles(WorkspaceRole.ADMIN)
+  @ApiOperation({
+    summary:
+      'Remove duplicate projects by name, keep one (ADMIN; chat suggest+confirm)',
+  })
+  dedupe(
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
+    @Body() dto: DedupeProjectsDto,
+  ) {
+    return this.projectsService.dedupe(workspaceId, dto);
   }
 
   @Get()

@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Prisma, TaskStatus } from '@prisma/client';
 import { TasksService } from './tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -21,6 +22,7 @@ const withProject = (data: Record<string, unknown>) => ({
 describe('TasksService', () => {
   let service: TasksService;
   let gateway: { emitTaskCreated: jest.Mock; emitTaskUpdated: jest.Mock; emitTaskMoved: jest.Mock; emitTaskDeleted: jest.Mock };
+  let eventEmitter: { emit: jest.Mock };
   let prisma: {
     project: { findUnique: jest.Mock };
     task: {
@@ -61,11 +63,14 @@ describe('TasksService', () => {
       emitTaskDeleted: jest.fn(),
     };
 
+    eventEmitter = { emit: jest.fn() };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TasksService,
         { provide: PrismaService, useValue: prisma },
         { provide: TaskGateway, useValue: gateway },
+        { provide: EventEmitter2, useValue: eventEmitter },
       ],
     }).compile();
 
