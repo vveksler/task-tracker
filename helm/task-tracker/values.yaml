@@ -3,7 +3,8 @@ namespace: task-tracker
 
 # ── PostgreSQL ──
 postgres:
-  image: postgres:16-alpine
+  # Same major as compose — pgvector needed for RAG TaskEmbedding migrations.
+  image: pgvector/pgvector:pg16
   user: tracker
   password: tracker
   database: task_tracker
