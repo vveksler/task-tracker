@@ -44,7 +44,8 @@ export async function GET(req: NextRequest) {
 
   response.cookies.set(OAUTH_STATE_COOKIE, state, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    // Compose/minikube use http://localhost — Secure cookies would be dropped.
+    secure: origin.startsWith('https://'),
     sameSite: 'lax',
     path: '/',
     maxAge: OAUTH_STATE_MAX_AGE,

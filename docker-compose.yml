@@ -48,6 +48,10 @@ services:
       PORT: "3001"
       NODE_ENV: "production"
       AI_ASSISTANT_URL: "http://ai-assistant:8000"
+      # Optional Google OAuth — set in root .env (gitignored)
+      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID:-}"
+      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET:-}"
+      GOOGLE_CALLBACK_URL: "${GOOGLE_CALLBACK_URL:-http://localhost:3000/api/auth/google/callback}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -91,6 +95,12 @@ services:
       # Client-side calls go through the browser (host network)
       NEXT_PUBLIC_API_URL: "http://localhost:3001"
       NEXT_PUBLIC_WS_URL: "http://localhost:3001"
+      # Force public origin (container listens on 0.0.0.0; browser must use localhost)
+      APP_URL: "http://localhost:3000"
+      # http://localhost — refresh cookie must not be Secure
+      COOKIE_SECURE: "false"
+      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID:-}"
+      GOOGLE_CALLBACK_URL: "${GOOGLE_CALLBACK_URL:-http://localhost:3000/api/auth/google/callback}"
     depends_on:
       backend:
         condition: service_healthy
