@@ -319,7 +319,7 @@ describe('AssistantChat proposals', () => {
       {
         type: 'create_task',
         summary: 'Create walk dog for Vadim',
-        projectId: 'proj-auth',
+        projectId: '22222222-2222-4222-8222-222222222222',
         title: 'Выгулять собаку Пичи',
         status: 'IN_PROGRESS',
         assigneeId: 'user-vadim',
@@ -340,7 +340,7 @@ describe('AssistantChat proposals', () => {
       expect(mockApiFetch).toHaveBeenCalledWith('/workspaces/ws-1/tasks', {
         method: 'POST',
         body: JSON.stringify({
-          projectId: 'proj-auth',
+          projectId: '22222222-2222-4222-8222-222222222222',
           title: 'Выгулять собаку Пичи',
           status: 'IN_PROGRESS',
           assigneeId: 'user-vadim',
@@ -393,5 +393,65 @@ describe('AssistantChat proposals', () => {
     expect(
       await screen.findByText('Applied — Removed 2 duplicate project(s)'),
     ).toBeInTheDocument();
+  });
+
+  it('binds create_task projectId after create_project Apply', async () => {
+    mockProposals = [
+      {
+        type: 'create_project',
+        summary: "Create new project 'My test project'",
+        name: 'My test project',
+      },
+      {
+        type: 'create_task',
+        summary: "Add task 'Setup project structure'",
+        projectId: 'My test project',
+        projectName: 'My test project',
+        title: 'Setup project structure',
+      },
+    ];
+    mockApiFetch.mockImplementation(async (path: string) => {
+      if (path.endsWith('/projects') && !path.includes('dedupe')) {
+        return {
+          id: '11111111-1111-4111-8111-111111111111',
+          name: 'My test project',
+          workspaceId: 'ws-1',
+          createdAt: '2026-07-31T00:00:00.000Z',
+        };
+      }
+      return {};
+    });
+
+    const user = userEvent.setup();
+    render(<AssistantChat workspaceId="ws-1" />);
+
+    await user.type(
+      screen.getByPlaceholderText(/ask about tasks/i),
+      'create project and tasks',
+    );
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+
+    const applyButtons = await screen.findAllByRole('button', { name: 'Apply' });
+    await user.click(applyButtons[0]!);
+
+    await waitFor(() => {
+      expect(mockApiFetch).toHaveBeenCalledWith('/workspaces/ws-1/projects', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'My test project' }),
+      });
+    });
+
+    // Remaining Apply is the create_task card (now bound to real UUID).
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+
+    await waitFor(() => {
+      expect(mockApiFetch).toHaveBeenCalledWith('/workspaces/ws-1/tasks', {
+        method: 'POST',
+        body: JSON.stringify({
+          projectId: '11111111-1111-4111-8111-111111111111',
+          title: 'Setup project structure',
+        }),
+      });
+    });
   });
 });

@@ -276,3 +276,29 @@ def test_scope_guard_keeps_keyword_bulk_on_workspace():
     )
     assert len(guarded) == 1
     assert guarded[0]["filter"]["titleContains"] == "auth"
+
+
+def test_sanitize_create_task_allows_project_name_without_id():
+    raw = {
+        "proposals": [
+            {
+                "type": "create_project",
+                "summary": "New project",
+                "name": "My test project",
+            },
+            {
+                "type": "create_task",
+                "summary": "Add setup task",
+                "projectName": "My test project",
+                "title": "Setup project structure",
+            },
+        ]
+    }
+    cleaned = sanitize_proposals(raw)
+    assert cleaned[0]["type"] == "create_project"
+    assert cleaned[1] == {
+        "type": "create_task",
+        "summary": "Add setup task",
+        "projectName": "My test project",
+        "title": "Setup project structure",
+    }

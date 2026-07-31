@@ -112,7 +112,10 @@ export type AssistantProposal =
   | {
       type: 'create_task';
       summary: string;
-      projectId: string;
+      /** Real UUID when known; may be a placeholder until create_project is Applied. */
+      projectId?: string;
+      /** Used with create_project in the same batch (name → id after Apply). */
+      projectName?: string;
       title: string;
       description?: string;
       status?: TaskStatus;

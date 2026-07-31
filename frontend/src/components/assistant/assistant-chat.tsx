@@ -14,7 +14,7 @@ import {
   loadAssistantChat,
   saveAssistantChat,
 } from '@/lib/assistant-chat-storage';
-import type { AssistantProposal } from '@/types/api';
+import type { AssistantProposal, Project } from '@/types/api';
 
 type ProposalStatus = 'pending' | 'applying' | 'applied' | 'error' | 'dismissed';
 
@@ -49,6 +49,48 @@ function nextId(prefix: string): string {
 
 function formatProposalType(type: AssistantProposal['type']): string {
   return type.replace(/_/g, ' ');
+}
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string | undefined): boolean {
+  return typeof value === 'string' && UUID_RE.test(value.trim());
+}
+
+/**
+ * After create_project Apply, bind pending create_task cards that still
+ * reference the new project by name / placeholder (not a real UUID).
+ */
+function bindCreateTaskToProject(
+  proposal: Extract<AssistantProposal, { type: 'create_task' }>,
+  created: { id: string; name: string },
+  createProjectCountInMessage: number,
+): Extract<AssistantProposal, { type: 'create_task' }> {
+  const pid = proposal.projectId?.trim() ?? '';
+  const pname = proposal.projectName?.trim() ?? '';
+  const nameMatch =
+    (pname && pname.toLowerCase() === created.name.toLowerCase()) ||
+    (pid && pid.toLowerCase() === created.name.toLowerCase());
+
+  if (isUuid(pid) && pid !== created.id) {
+    return proposal; // clearly another existing project
+  }
+  if (isUuid(pid) && pid === created.id) {
+    return { ...proposal, projectId: created.id, projectName: created.name };
+  }
+  if (nameMatch || !isUuid(pid)) {
+    // Placeholder / name / missing id — bind when this is the only new project
+    // in the batch, or when the name explicitly matches.
+    if (nameMatch || createProjectCountInMessage <= 1) {
+      return {
+        ...proposal,
+        projectId: created.id,
+        projectName: created.name,
+      };
+    }
+  }
+  return proposal;
 }
 
 export const AssistantChat: React.FC<AssistantChatProps> = ({
@@ -138,6 +180,7 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
 
       try {
         let resultNote: string | undefined;
+        let createdProject: { id: string; name: string } | null = null;
 
         if (proposal.type === 'update_task') {
           await apiFetch(`/workspaces/${workspaceId}/tasks/${proposal.taskId}`, {
@@ -145,6 +188,13 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
             body: JSON.stringify(proposal.patch),
           });
         } else if (proposal.type === 'create_task') {
+          if (!isUuid(proposal.projectId)) {
+            throw new Error(
+              proposal.projectName
+                ? `Apply the “create project '${proposal.projectName}'” card first`
+                : 'Apply the create project card first (projectId is not a UUID yet)',
+            );
+          }
           await apiFetch(`/workspaces/${workspaceId}/tasks`, {
             method: 'POST',
             body: JSON.stringify({
@@ -158,10 +208,15 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
             }),
           });
         } else if (proposal.type === 'create_project') {
-          await apiFetch(`/workspaces/${workspaceId}/projects`, {
-            method: 'POST',
-            body: JSON.stringify({ name: proposal.name }),
-          });
+          const created = await apiFetch<Project>(
+            `/workspaces/${workspaceId}/projects`,
+            {
+              method: 'POST',
+              body: JSON.stringify({ name: proposal.name }),
+            },
+          );
+          createdProject = { id: created.id, name: created.name };
+          resultNote = `Created “${created.name}”`;
         } else if (proposal.type === 'bulk_update_tasks') {
           const result = await apiFetch<{
             updatedCount: number;
@@ -213,18 +268,51 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
         }
 
         setMessages((prev) =>
-          prev.map((m) =>
-            m.id !== messageId
-              ? m
-              : {
-                  ...m,
-                  proposals: m.proposals?.map((p) =>
-                    p.key === cardKey
-                      ? { ...p, status: 'applied', resultNote }
-                      : p,
-                  ),
-                },
-          ),
+          prev.map((m) => {
+            if (m.id !== messageId) return m;
+
+            const createProjectCount =
+              m.proposals?.filter((p) => p.proposal.type === 'create_project')
+                .length ?? 0;
+
+            return {
+              ...m,
+              proposals: m.proposals?.map((p) => {
+                let nextProposal = p.proposal;
+                // Wire pending create_task / navigate cards to the new project id.
+                if (createdProject && p.status === 'pending') {
+                  if (nextProposal.type === 'create_task') {
+                    nextProposal = bindCreateTaskToProject(
+                      nextProposal,
+                      createdProject,
+                      createProjectCount,
+                    );
+                  } else if (
+                    nextProposal.type === 'navigate_to_project' &&
+                    !isUuid(nextProposal.projectId)
+                  ) {
+                    nextProposal = {
+                      ...nextProposal,
+                      projectId: createdProject.id,
+                    };
+                  }
+                }
+
+                if (p.key === cardKey) {
+                  return {
+                    ...p,
+                    proposal: nextProposal,
+                    status: 'applied' as const,
+                    resultNote,
+                  };
+                }
+                if (nextProposal !== p.proposal) {
+                  return { ...p, proposal: nextProposal };
+                }
+                return p;
+              }),
+            };
+          }),
         );
 
         onApplied?.(proposal);
