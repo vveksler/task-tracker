@@ -9,6 +9,8 @@ COPY --from=builder /root/.local /root/.local
 COPY app ./app
 ENV PATH=/root/.local/bin:$PATH
 ENV PYTHONUNBUFFERED=1
+# Railway injects PORT; default 8000 for local/docker-compose.
+ENV PORT=8000
 
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

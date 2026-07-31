@@ -144,6 +144,7 @@ Railway does **not** use Helm `values.yaml`. Set Variables on each service in th
 | `GOOGLE_CALLBACK_URL` | `https://<frontend>.up.railway.app/api/auth/google/callback` |
 | `MAIL_HOST` / `MAIL_PORT` / `MAIL_USER` / `MAIL_PASS` / `MAIL_FROM` | SMTP (local / Pro only — Hobby blocks SMTP) |
 | `RESEND_API_KEY` | **Preferred on Railway Hobby** — HTTPS email API ([Resend](https://resend.com)); set `MAIL_FROM` too |
+| `AI_ASSISTANT_URL` | Private URL of the AI service, e.g. `http://ai-assistant.railway.internal:8000` |
 | `NODE_ENV` | `production` |
 
 **Frontend service** (Next):
@@ -160,6 +161,40 @@ Railway does **not** use Helm `values.yaml`. Set Variables on each service in th
 
 Also add the production callback URI in [Google Cloud Console](https://console.cloud.google.com/)
 Authorized redirect URIs.
+
+**AI Assistant service** (Python FastAPI, optional):
+
+New Railway service from this repo:
+
+1. **Root Directory:** `ai-assistant`
+2. **Builder:** Dockerfile (`ai-assistant/Dockerfile`, `railway.json` included)
+3. Prefer **private networking only** — Nest proxies ask/embed; no public domain required
+4. Healthcheck: `GET /health/live` (ready probe hits Postgres at `/health/ready`)
+
+| Variable | Example / notes |
+| --- | --- |
+| `DATABASE_URL` | Same Postgres as backend (asyncpg; `?schema=public` optional) |
+| `OPENAI_API_KEY` | Embeddings (`text-embedding-3-small`) |
+| `ANTHROPIC_API_KEY` | Claude answer + proposal extraction |
+| `PORT` | Set by Railway automatically; image defaults to `8000` |
+
+**Postgres / pgvector:** RAG migrations run `CREATE EXTENSION vector`. On the Railway
+Postgres plugin, enable it once (SQL shell or migrate job):
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+If the extension is not available on the plugin image, use a Postgres that ships
+pgvector (local compose / self-hosted use `pgvector/pgvector:pg16`).
+
+After the AI service is up and migrations are applied, enable per workspace
+(cost gate — not exposed in the product UI):
+
+```
+cd backend
+DATABASE_URL="<prod>" npx ts-node scripts/enable-ai-assistant.ts <workspaceId>
+```
 
 ### Seed data (optional)
 
@@ -252,7 +287,7 @@ task-tracker/
 │   ├── Chart.yaml
 │   ├── values.yaml
 │   └── templates/               # 14 K8s manifests
-├── ai-assistant/                # FastAPI RAG microservice (internal only)
+├── ai-assistant/                # FastAPI RAG microservice (Dockerfile + railway.json)
 │   ├── app/                     # retrieval, generation, workspace_context
 │   └── tests/
 ├── backend/                     # NestJS API

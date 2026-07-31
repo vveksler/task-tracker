@@ -6,12 +6,14 @@
 #     -f helm/task-tracker/values-production.yaml
 #
 # On Railway this chart is NOT used — set the equivalent Variables on each
-# service (see README "Railway production variables"). Mapping:
+# service (see README "Option 4: Railway"). Mapping:
 #   appUrl              → FRONTEND_ORIGIN / NEXT_PUBLIC_APP_URL / APP_URL
 #   google.*            → GOOGLE_*
 #   mail.resendApiKey   → RESEND_API_KEY
 #   mail.from           → MAIL_FROM
 #   backend.jwt*        → JWT_*
+#   (AI service)        → AI_ASSISTANT_URL on Nest + OPENAI_/ANTHROPIC_ on ai-assistant
+#                         (see README "AI Assistant service")
 
 ingress:
   enabled: true
