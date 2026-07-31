@@ -110,20 +110,38 @@ export function loadAssistantChat(
   }
 }
 
+/** Runtime chat may include transient "applying"; normalizeStatus strips it. */
+export interface PersistableChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  proposals?: Array<{
+    key: string;
+    proposal: AssistantProposal;
+    status: string;
+    error?: string;
+    resultNote?: string;
+  }>;
+}
+
 export function saveAssistantChat(
   userId: string,
   workspaceId: string,
-  messages: StoredChatMessage[],
+  messages: PersistableChatMessage[],
 ): void {
   if (typeof window === 'undefined') return;
   try {
-    const trimmed = messages
+    const trimmed: StoredChatMessage[] = messages
       .map((m) => ({
-        ...m,
+        id: m.id,
+        role: m.role,
         content: m.content.slice(0, MAX_CONTENT_CHARS),
         proposals: m.proposals?.map((p) => ({
-          ...p,
+          key: p.key,
+          proposal: p.proposal,
           status: normalizeStatus(p.status),
+          ...(p.error !== undefined ? { error: p.error } : {}),
+          ...(p.resultNote !== undefined ? { resultNote: p.resultNote } : {}),
         })),
       }))
       .slice(-MAX_MESSAGES);

@@ -78,4 +78,28 @@ describe('assistant-chat-storage', () => {
     const loaded = loadAssistantChat('u1', 'ws1');
     expect(loaded[0]?.proposals?.[0]?.status).toBe('pending');
   });
+
+  it('accepts applying status from runtime chat and persists as pending', () => {
+    saveAssistantChat('u1', 'ws1', [
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: 'ok',
+        proposals: [
+          {
+            key: 'k1',
+            proposal: {
+              type: 'create_project',
+              summary: 'X',
+              name: 'X',
+            },
+            status: 'applying',
+          },
+        ],
+      },
+    ]);
+    expect(loadAssistantChat('u1', 'ws1')[0]?.proposals?.[0]?.status).toBe(
+      'pending',
+    );
+  });
 });
