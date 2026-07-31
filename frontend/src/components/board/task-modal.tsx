@@ -54,7 +54,11 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       if (e.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', handleEsc);
-    return () => document.removeEventListener('keydown', handleEsc);
+    document.body.classList.add('scroll-locked');
+    return () => {
+      document.removeEventListener('keydown', handleEsc);
+      document.body.classList.remove('scroll-locked');
+    };
   }, [onClose]);
 
   const handleBackdropClick = useCallback(
@@ -103,13 +107,14 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     <div
       ref={backdropRef}
       onClick={handleBackdropClick}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      className="task-modal-backdrop"
     >
-      <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
-        <div className="flex items-start justify-between">
+      <div className="task-modal-panel" role="dialog" aria-modal="true" aria-label="Task details">
+        <div className="flex items-start justify-between gap-3">
           <h2 className="text-lg font-semibold text-gray-900">Task details</h2>
           <button
             onClick={onClose}
+            aria-label="Close task details"
             className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
           >
             ✕
@@ -181,17 +186,22 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           </div>
         </div>
 
-        <div className="mt-6 flex items-center justify-between">
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
           {isAdmin ? (
             <Button variant="danger" size="sm" onClick={handleDelete}>
               Delete task
             </Button>
           ) : (
-            <span />
+            <span className="hidden sm:inline" />
           )}
 
-          <div className="flex gap-2">
-            <Button variant="secondary" size="sm" onClick={onClose}>
+          <div className="flex gap-2 sm:justify-end">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={onClose}
+              className="flex-1 sm:flex-none"
+            >
               Cancel
             </Button>
             <Button
@@ -199,6 +209,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               onClick={handleSave}
               isLoading={isSaving}
               disabled={!hasChanges || !title.trim()}
+              className="flex-1 sm:flex-none"
             >
               Save
             </Button>

@@ -33,21 +33,23 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         >
           &larr; {workspace?.name ?? 'Workspace'}
         </Link>
-        <h1 className="mt-2 text-2xl font-bold text-gray-900">Analytics</h1>
+        <h1 className="mt-2 text-xl font-bold text-gray-900 sm:text-2xl">
+          Analytics
+        </h1>
         <p className="text-sm text-gray-500">
           {totalTasks} total tasks across all projects
         </p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
+        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
           <h2 className="mb-4 text-sm font-semibold text-gray-700">
             Status Breakdown
           </h2>
           <StatusPieChart data={statusData} />
         </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
           <h2 className="mb-4 text-sm font-semibold text-gray-700">
             Daily Activity (90 days)
           </h2>
@@ -55,14 +57,14 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
         <h2 className="mb-4 text-sm font-semibold text-gray-700">
           Activity Heatmap
         </h2>
         <ActivityHeatmap data={activityData} />
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
         <h2 className="mb-4 text-sm font-semibold text-gray-700">
           Load by Assignee
         </h2>

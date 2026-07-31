@@ -319,7 +319,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        <div className="flex gap-4 overflow-x-auto p-1 pb-4">
+        <div className="kanban-board-scroll">
           {COLUMNS.map((status) => (
             <BoardColumn
               key={status}

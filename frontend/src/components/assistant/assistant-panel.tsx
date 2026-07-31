@@ -31,6 +31,13 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isOpen, close]);
 
+  // Prevent background scroll while the sheet is open (esp. mobile).
+  useEffect(() => {
+    if (!isOpen || isAssistantPage) return;
+    document.body.classList.add('scroll-locked');
+    return () => document.body.classList.remove('scroll-locked');
+  }, [isOpen, isAssistantPage]);
+
   if (isAssistantPage) return null;
 
   return (
@@ -41,7 +48,10 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
         aria-label="AI Assistant"
         aria-expanded={isOpen}
         title="AI Assistant"
-        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg transition hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2"
+        className={
+          'assistant-fab transition hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 ' +
+          (isOpen ? 'pointer-events-none opacity-0 sm:pointer-events-auto sm:opacity-100' : '')
+        }
       >
         <ChatIcon />
       </button>
@@ -61,7 +71,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
         aria-modal={isOpen}
         aria-label="AI Assistant"
         className={
-          'fixed inset-y-0 right-0 z-50 flex w-full max-w-[420px] flex-col border-l border-gray-200 bg-white shadow-xl transition-transform duration-200 ease-out ' +
+          'assistant-panel ' +
           (isOpen
             ? 'translate-x-0'
             : 'pointer-events-none translate-x-full')

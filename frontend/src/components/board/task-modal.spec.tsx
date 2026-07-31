@@ -245,7 +245,9 @@ describe('TaskModal', () => {
     it('should close on backdrop click', () => {
       render(<TaskModal task={task} workspaceId="ws-1" onClose={onClose} />);
 
-      const backdrop = screen.getByText('Task details').closest('.fixed');
+      const backdrop = screen
+        .getByRole('dialog', { name: 'Task details' })
+        .closest('.task-modal-backdrop');
       if (backdrop) {
         fireEvent.click(backdrop);
       }

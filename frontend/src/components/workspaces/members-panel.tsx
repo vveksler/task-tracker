@@ -98,8 +98,8 @@ export const MembersPanel: React.FC<MembersPanelProps> = ({ workspaceId }) => {
   );
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between">
+    <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold text-gray-800">
           Members ({members.length})
         </h2>
@@ -157,26 +157,28 @@ export const MembersPanel: React.FC<MembersPanelProps> = ({ workspaceId }) => {
           return (
             <li
               key={member.userId}
-              className="flex items-center justify-between py-3"
+              className="flex items-start justify-between gap-3 py-3 sm:items-center"
             >
-              <div className="flex items-center gap-3">
+              <div className="flex min-w-0 items-center gap-3">
                 <span
-                  className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium text-white ${colorForUser(member.userId)}`}
+                  className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-medium text-white ${colorForUser(member.userId)}`}
                 >
                   {getInitials(member.user.name)}
                 </span>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-gray-900">
                     {member.user.name}
                     {isSelf && (
                       <span className="ml-1 text-xs text-gray-400">(you)</span>
                     )}
                   </p>
-                  <p className="text-xs text-gray-500">{member.user.email}</p>
+                  <p className="truncate text-xs text-gray-500">
+                    {member.user.email}
+                  </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
                 <span
                   className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                     isOwner
@@ -194,6 +196,7 @@ export const MembersPanel: React.FC<MembersPanelProps> = ({ workspaceId }) => {
                     onClick={() => handleRemove(member)}
                     className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600"
                     title="Remove member"
+                    aria-label={`Remove ${member.user.name}`}
                   >
                     ✕
                   </button>

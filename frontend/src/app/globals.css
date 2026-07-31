@@ -5,5 +5,184 @@
 @layer base {
   body {
     @apply bg-gray-50 text-gray-900 antialiased;
+    overflow-x: hidden;
+  }
+
+  body.scroll-locked {
+    overflow: hidden;
+    touch-action: none;
+  }
+}
+
+@layer components {
+  /* Kanban: horizontal board with touch-friendly snap scrolling */
+  .kanban-board-scroll {
+    display: flex;
+    gap: 1rem;
+    overflow-x: auto;
+    padding: 0.25rem 0.25rem 1rem;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    overscroll-behavior-x: contain;
+  }
+
+  .kanban-column {
+    display: flex;
+    width: 18rem;
+    flex-shrink: 0;
+    flex-direction: column;
+    scroll-snap-align: start;
+  }
+
+  /* Task detail modal shell */
+  .task-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgb(0 0 0 / 0.4);
+    padding: 1rem;
+  }
+
+  .task-modal-panel {
+    width: 100%;
+    max-width: 32rem;
+    max-height: min(90vh, 100%);
+    overflow-y: auto;
+    border-radius: 0.75rem;
+    background: white;
+    padding: 1.5rem;
+    box-shadow:
+      0 20px 25px -5px rgb(0 0 0 / 0.1),
+      0 8px 10px -6px rgb(0 0 0 / 0.1);
+  }
+
+  /* AI Assistant slide-over + FAB */
+  .assistant-fab {
+    position: fixed;
+    z-index: 40;
+    display: flex;
+    height: 3.5rem;
+    width: 3.5rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    background-color: #2563eb;
+    color: white;
+    box-shadow:
+      0 10px 15px -3px rgb(0 0 0 / 0.1),
+      0 4px 6px -4px rgb(0 0 0 / 0.1);
+    bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
+    right: max(1.5rem, env(safe-area-inset-right, 0px));
+  }
+
+  .assistant-panel {
+    position: fixed;
+    inset-block: 0;
+    right: 0;
+    z-index: 50;
+    display: flex;
+    width: 100%;
+    max-width: 26.25rem;
+    flex-direction: column;
+    border-left: 1px solid #e5e7eb;
+    background: white;
+    box-shadow:
+      0 20px 25px -5px rgb(0 0 0 / 0.1),
+      0 8px 10px -6px rgb(0 0 0 / 0.1);
+    transition: transform 200ms ease-out;
+  }
+
+  .assistant-msg-user {
+    margin-left: 2rem;
+    margin-right: 0;
+  }
+
+  .assistant-msg-assistant {
+    margin-left: 0;
+    margin-right: 2rem;
+  }
+
+  .assistant-composer-hint {
+    display: inline;
+  }
+}
+
+/* —— Mobile (below Tailwind `sm`) —— */
+@media (max-width: 639px) {
+  .kanban-board-scroll {
+    gap: 0.75rem;
+    /* Bleed to viewport edges inside padded main */
+    margin-inline: -0.75rem;
+    padding-inline: 0.75rem;
+    scroll-snap-type: x mandatory;
+  }
+
+  .kanban-column {
+    width: min(85vw, 18rem);
+  }
+
+  .task-modal-backdrop {
+    align-items: stretch;
+    padding: 0;
+  }
+
+  .task-modal-panel {
+    max-width: none;
+    max-height: none;
+    min-height: 100%;
+    border-radius: 0;
+    padding: 1rem;
+    padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  .assistant-fab {
+    height: 3.25rem;
+    width: 3.25rem;
+    bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+    right: max(1rem, env(safe-area-inset-right, 0px));
+  }
+
+  .assistant-panel {
+    max-width: none;
+    border-left: none;
+  }
+
+  .assistant-msg-user {
+    margin-left: 0.5rem;
+  }
+
+  .assistant-msg-assistant {
+    margin-right: 0.5rem;
+  }
+
+  .assistant-composer-hint {
+    display: none;
+  }
+}
+
+/* —— Tablet and up —— */
+@media (min-width: 640px) {
+  .kanban-column {
+    width: 18rem;
+  }
+
+  .assistant-panel {
+    max-width: 26.25rem;
+  }
+}
+
+/* Prefer dynamic viewport height where supported (mobile browser chrome) */
+@supports (height: 100dvh) {
+  .assistant-page-shell {
+    height: calc(100dvh - 8rem);
+  }
+}
+
+@media (max-width: 639px) {
+  .assistant-page-shell {
+    height: calc(100dvh - 6.5rem);
   }
 }

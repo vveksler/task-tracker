@@ -91,8 +91,8 @@ const projects: Project[] = [
 ];
 
 const getWorkspaceHeaderButtons = () => {
-  const heading = screen.getByText('Test Workspace');
-  const headerRow = heading.closest('.flex.items-center.gap-3') as HTMLElement;
+  const heading = screen.getByRole('heading', { name: 'Test Workspace' });
+  const headerRow = heading.parentElement as HTMLElement | null;
   return headerRow ? within(headerRow) : null;
 };
 

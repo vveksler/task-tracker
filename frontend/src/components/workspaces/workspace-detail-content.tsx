@@ -136,22 +136,22 @@ export const WorkspaceDetailContent: React.FC<WorkspaceDetailContentProps> = ({
           &larr; Workspaces
         </Link>
 
-        <div className="mt-2 flex items-center gap-3">
+        <div className="mt-2 flex flex-wrap items-center gap-2 sm:gap-3">
           {isEditingName ? (
             <form
               onSubmit={(e) => { e.preventDefault(); handleSaveWorkspaceName(); }}
-              className="flex items-center gap-2"
+              className="flex min-w-0 flex-1 items-center gap-2"
             >
               <input
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                className="rounded-lg border border-gray-300 px-3 py-1.5 text-2xl font-bold focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                className="w-full min-w-0 rounded-lg border border-gray-300 px-3 py-1.5 text-xl font-bold focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 sm:text-2xl"
                 autoFocus
                 onBlur={handleSaveWorkspaceName}
               />
             </form>
           ) : (
-            <h1 className="text-2xl font-bold text-gray-900">
+            <h1 className="break-words text-xl font-bold text-gray-900 sm:text-2xl">
               {workspace?.name ?? 'Workspace'}
             </h1>
           )}
@@ -181,17 +181,17 @@ export const WorkspaceDetailContent: React.FC<WorkspaceDetailContentProps> = ({
       <div className="flex flex-wrap items-center gap-3">
         <Link
           href={`/workspaces/${workspaceId}/analytics`}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+          className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 sm:w-auto"
         >
-          📊 Analytics
+          Analytics
         </Link>
       </div>
 
       <MembersPanel workspaceId={workspaceId} />
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-gray-800">Projects</h2>
-        <Button size="sm" onClick={() => setShowCreate(true)}>
+        <Button size="sm" onClick={() => setShowCreate(true)} className="shrink-0">
           New project
         </Button>
       </div>
@@ -199,9 +199,9 @@ export const WorkspaceDetailContent: React.FC<WorkspaceDetailContentProps> = ({
       {showCreate && (
         <form
           onSubmit={handleCreateProject}
-          className="flex items-end gap-3 rounded-lg border border-gray-200 bg-white p-4"
+          className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 sm:flex-row sm:items-end"
         >
-          <div className="flex-1">
+          <div className="min-w-0 flex-1">
             <Input
               label="Project name"
               value={newName}
@@ -211,10 +211,19 @@ export const WorkspaceDetailContent: React.FC<WorkspaceDetailContentProps> = ({
               autoFocus
             />
           </div>
-          <Button type="submit" isLoading={isCreating}>Create</Button>
-          <Button type="button" variant="ghost" onClick={() => setShowCreate(false)}>
-            Cancel
-          </Button>
+          <div className="flex gap-2">
+            <Button type="submit" isLoading={isCreating} className="flex-1 sm:flex-none">
+              Create
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setShowCreate(false)}
+              className="flex-1 sm:flex-none"
+            >
+              Cancel
+            </Button>
+          </div>
         </form>
       )}
 
@@ -227,7 +236,7 @@ export const WorkspaceDetailContent: React.FC<WorkspaceDetailContentProps> = ({
           {projects.map((project) => (
             <div
               key={project.id}
-              className="group relative rounded-lg border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+              className="relative rounded-lg border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
             >
               {editingProjectId === project.id ? (
                 <form
@@ -253,7 +262,7 @@ export const WorkspaceDetailContent: React.FC<WorkspaceDetailContentProps> = ({
               )}
 
               {isAdmin && editingProjectId !== project.id && (
-                <div className="absolute right-3 top-3 hidden gap-1 group-hover:flex">
+                <div className="absolute right-3 top-3 flex gap-1">
                   <button
                     onClick={(e) => {
                       e.preventDefault();

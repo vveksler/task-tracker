@@ -405,8 +405,8 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
             key={msg.id}
             className={
               msg.role === 'user'
-                ? 'ml-8 rounded-lg bg-brand-50 px-3 py-2 text-sm text-gray-900'
-                : 'mr-8 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-800'
+                ? 'assistant-msg-user rounded-lg bg-brand-50 px-3 py-2 text-sm text-gray-900'
+                : 'assistant-msg-assistant rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-800'
             }
           >
             <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">
@@ -453,7 +453,7 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
                               : 'Applied'}
                           </p>
                         ) : (
-                          <div className="mt-2 flex gap-2">
+                          <div className="mt-2 flex flex-wrap gap-2">
                             <Button
                               type="button"
                               size="sm"
@@ -466,6 +466,7 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
                                   card.proposal,
                                 )
                               }
+                              className="min-w-[4.5rem] flex-1 sm:flex-none"
                             >
                               {card.proposal.type === 'navigate_to_project'
                                 ? 'Go'
@@ -479,6 +480,7 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
                               onClick={() =>
                                 dismissProposal(msg.id, card.key)
                               }
+                              className="min-w-[4.5rem] flex-1 sm:flex-none"
                             >
                               Dismiss
                             </Button>
@@ -494,7 +496,7 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
       </div>
 
       <form
-        className="border-t border-gray-200 p-3"
+        className="border-t border-gray-200 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
         onSubmit={(e) => {
           e.preventDefault();
           void send();
@@ -512,21 +514,21 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
           rows={variant === 'panel' ? 2 : 3}
           placeholder="Ask about tasks, or request a change…"
           disabled={isStreaming}
-          className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:bg-gray-50"
+          className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-base focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:bg-gray-50 sm:text-sm"
         />
 
-        <div className="mt-2 flex items-center justify-between gap-2">
+        <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           {error ? (
             <p className="text-sm text-red-600" role="alert">
               {error}
             </p>
           ) : (
-            <span className="text-xs text-gray-400">
+            <span className="assistant-composer-hint text-xs text-gray-400">
               Enter to send · Shift+Enter for newline
             </span>
           )}
 
-          <div className="flex shrink-0 gap-2">
+          <div className="flex shrink-0 gap-2 self-end sm:self-auto">
             {isStreaming ? (
               <Button type="button" variant="secondary" size="sm" onClick={stop}>
                 Stop
@@ -544,17 +546,17 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
 
   if (variant === 'panel') {
     return (
-      <div className="flex h-full flex-col">
-        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-          <div>
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-3 py-3 sm:px-4">
+          <div className="min-w-0">
             <h2 className="text-base font-semibold text-gray-900">
               AI Assistant
             </h2>
-            <p className="text-xs text-gray-500">
+            <p className="truncate text-xs text-gray-500">
               Suggest + confirm — Apply to save
             </p>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1">
             {messages.length > 0 && (
               <button
                 type="button"
@@ -583,16 +585,18 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
   }
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] flex-col gap-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
+    <div className="assistant-page-shell flex h-[calc(100vh-8rem)] flex-col gap-3 sm:gap-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+        <div className="min-w-0">
           <Link
             href={`/workspaces/${workspaceId}`}
             className="text-sm text-gray-500 hover:text-gray-700"
           >
             &larr; Workspace
           </Link>
-          <h1 className="mt-2 text-2xl font-bold text-gray-900">AI Assistant</h1>
+          <h1 className="mt-2 text-xl font-bold text-gray-900 sm:text-2xl">
+            AI Assistant
+          </h1>
           <p className="mt-1 text-sm text-gray-600">
             Ask questions or request changes — bulk updates, task edits, and
             project cleanup. Suggested edits appear as cards; nothing is saved
@@ -606,6 +610,7 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
             size="sm"
             disabled={isStreaming}
             onClick={clearHistory}
+            className="self-start"
           >
             Clear chat
           </Button>

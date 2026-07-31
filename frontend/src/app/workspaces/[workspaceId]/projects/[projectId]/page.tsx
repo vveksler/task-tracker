@@ -49,7 +49,7 @@ const BoardPage = () => {
         >
           &larr; Projects
         </Link>
-        <h1 className="mt-2 text-2xl font-bold text-gray-900">
+        <h1 className="mt-2 break-words text-xl font-bold text-gray-900 sm:text-2xl">
           {project?.name ?? ''}
         </h1>
       </div>

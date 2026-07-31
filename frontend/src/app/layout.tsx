@@ -11,6 +11,12 @@ export const metadata: Metadata = {
   description: "Full-stack Kanban task tracker",
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover" as const,
+};
+
 /**
  * Reading headers() opts the tree into dynamic rendering. That is required for
  * CSP nonces: middleware mints a new nonce per request, and Next can only stamp

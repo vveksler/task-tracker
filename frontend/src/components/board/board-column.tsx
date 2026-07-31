@@ -61,7 +61,7 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
     <div
       ref={setNodeRef}
       className={`
-        flex w-72 flex-shrink-0 flex-col rounded-xl bg-gray-100 transition-colors
+        kanban-column rounded-xl bg-gray-100 transition-colors
         ${isOver ? 'ring-2 ring-brand-500 ring-opacity-50' : ''}
       `}
     >
