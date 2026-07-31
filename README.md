@@ -109,6 +109,7 @@ npm run dev           # http://localhost:3000
 minikube start --driver=docker --cpus=4 --memory=4096
 eval $(minikube docker-env)
 docker build -t task-tracker-backend:latest ./backend
+docker build -t task-tracker-ai-assistant:latest ./ai-assistant
 docker build \
   --build-arg NEXT_PUBLIC_API_URL=http://task-tracker.local/api \
   --build-arg NEXT_PUBLIC_WS_URL=http://task-tracker.local \
@@ -123,9 +124,23 @@ minikube tunnel
 # Open http://task-tracker.local
 ```
 
-For Google OAuth + real inbox mail on minikube, copy
+Or one-shot: `./scripts/minikube-deploy.sh` (builds backend + **ai-assistant** + frontend,
+Helm upgrade, tunnel).
+
+The chart runs **ai-assistant** as its own Deployment/Service (`ClusterIP`, no Ingress).
+Nest gets `AI_ASSISTANT_URL=http://ai-assistant:8000`. Put `openaiApiKey` /
+`anthropicApiKey` in `values-local.yaml` (see example). Then enable a workspace:
+
+```
+kubectl port-forward -n task-tracker svc/postgres 5433:5432
+cd backend
+DATABASE_URL="postgresql://tracker:tracker@localhost:5433/task_tracker?schema=public" \
+  npx ts-node scripts/enable-ai-assistant.ts <workspaceId>
+```
+
+For Google OAuth + mail on minikube, copy
 `helm/task-tracker/values-local.yaml.example` → `values-local.yaml` (gitignored)
-and run `./scripts/minikube-deploy.sh`. Use a **sending** SMTP (not Mailtrap sandbox).
+and fill secrets. Use a **sending** SMTP (not Mailtrap sandbox) for real inbox mail.
 
 ### Option 4: Railway (production)
 
@@ -283,7 +298,7 @@ npx ts-node scripts/seed-rag-demo.ts
 task-tracker/
 ├── .github/workflows/ci.yml    # GitHub Actions: test + build
 ├── docker-compose.yml           # Local: Postgres (pgvector) + backend + frontend + ai-assistant
-├── helm/task-tracker/           # Self-authored Helm chart
+├── helm/task-tracker/           # Helm: backend, frontend, ai-assistant, postgres, redis
 │   ├── Chart.yaml
 │   ├── values.yaml
 │   └── templates/               # 14 K8s manifests

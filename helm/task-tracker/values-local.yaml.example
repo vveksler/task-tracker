@@ -3,6 +3,7 @@
 #   helm upgrade --install task-tracker helm/task-tracker -n task-tracker \
 #     -f helm/task-tracker/values.yaml \
 #     -f helm/task-tracker/values-local.yaml
+# Or: ./scripts/minikube-deploy.sh
 
 # For Google OAuth local testing (Google rejects *.local redirect URIs):
 appUrl: "http://localhost:3000"
@@ -21,3 +22,10 @@ mail:
   pass: "YOUR_MAILTRAP_PASS"
   from: "Task Tracker <noreply@localhost>"
   # resendApiKey: "re_xxxxxxxx"
+
+# RAG assistant (in-cluster). After deploy, enable per workspace:
+#   DATABASE_URL=... npx ts-node scripts/enable-ai-assistant.ts <workspaceId>
+aiAssistant:
+  enabled: true
+  openaiApiKey: "sk-..."
+  anthropicApiKey: "sk-ant-..."

@@ -1,0 +1,17 @@
+{{- if .Values.aiAssistant.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-assistant
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "task-tracker.labels" . | nindent 4 }}
+    {{- include "task-tracker.selectorLabels" (dict "component" "ai-assistant") | nindent 4 }}
+spec:
+  selector:
+    {{- include "task-tracker.selectorLabels" (dict "component" "ai-assistant") | nindent 4 }}
+  ports:
+    - port: {{ .Values.aiAssistant.port }}
+      targetPort: {{ .Values.aiAssistant.port }}
+      protocol: TCP
+{{- end }}

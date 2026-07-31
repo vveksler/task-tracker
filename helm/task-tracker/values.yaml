@@ -69,6 +69,25 @@ frontend:
     maxReplicas: 3
     targetCPUUtilization: 70
 
+# ── AI Assistant (Python FastAPI RAG) ──
+# ClusterIP only — Nest calls AI_ASSISTANT_URL. Put real keys in values-local /
+# values-production (gitignored). Workspace still needs enable-ai-assistant.ts.
+aiAssistant:
+  enabled: true
+  image: task-tracker-ai-assistant:latest
+  imagePullPolicy: Never          # minikube uses local images
+  replicas: 1
+  port: 8000
+  openaiApiKey: ""
+  anthropicApiKey: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
 # ── Ingress ──
 ingress:
   enabled: true

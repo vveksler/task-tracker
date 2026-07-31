@@ -12,8 +12,8 @@
 #   mail.resendApiKey   → RESEND_API_KEY
 #   mail.from           → MAIL_FROM
 #   backend.jwt*        → JWT_*
-#   (AI service)        → AI_ASSISTANT_URL on Nest + OPENAI_/ANTHROPIC_ on ai-assistant
-#                         (see README "AI Assistant service")
+#   (AI service)        → aiAssistant.* below (Helm) or Railway private AI service
+#                         + AI_ASSISTANT_URL on Nest (see README)
 
 ingress:
   enabled: true
@@ -28,6 +28,14 @@ backend:
 
 frontend:
   imagePullPolicy: IfNotPresent
+
+# In-cluster RAG microservice (ClusterIP). Not exposed via Ingress.
+aiAssistant:
+  enabled: true
+  image: "YOUR_REGISTRY/task-tracker-ai-assistant:TAG"
+  imagePullPolicy: IfNotPresent
+  openaiApiKey: "sk-..."
+  anthropicApiKey: "sk-ant-..."
 
 google:
   clientId: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"

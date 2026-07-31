@@ -8,7 +8,7 @@
 #   ./scripts/minikube-deploy.sh --skip-build   # upgrade + tunnel only
 #
 # Optional secrets: helm/task-tracker/values-local.yaml (gitignored).
-# Copy from values-local.yaml.example and fill GOOGLE_* / MAIL_*.
+# Copy from values-local.yaml.example and fill GOOGLE_* / MAIL_* / aiAssistant keys.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -65,6 +65,9 @@ if [[ "$DO_BUILD" -eq 1 ]]; then
   echo "==> Building backend image"
   docker build -t task-tracker-backend:latest ./backend
 
+  echo "==> Building AI Assistant image"
+  docker build -t task-tracker-ai-assistant:latest ./ai-assistant
+
   echo "==> Building frontend image"
   docker build \
     --build-arg "NEXT_PUBLIC_API_URL=http://${HOST}/api" \
@@ -80,22 +83,29 @@ kubectl get namespace "$NS" >/dev/null 2>&1 || kubectl create namespace "$NS"
 
 HELM_ARGS=(upgrade --install "$RELEASE" helm/task-tracker --namespace "$NS" -f helm/task-tracker/values.yaml)
 if [[ -f helm/task-tracker/values-local.yaml ]]; then
-  echo "==> Using values-local.yaml (Google/Mail secrets)"
+  echo "==> Using values-local.yaml (Google/Mail/AI secrets)"
   HELM_ARGS+=(-f helm/task-tracker/values-local.yaml)
 else
-  echo "==> No values-local.yaml — OAuth/mail stay unset (optional)"
+  echo "==> No values-local.yaml — OAuth/mail/AI keys stay unset (optional)"
 fi
 
 echo "==> Helm upgrade"
 # Clear leftover kubectl-set env ownership that conflicts with Helm SSA
 kubectl set env deployment/frontend -n "$NS" NEXT_PUBLIC_APP_URL- GOOGLE_CALLBACK_URL- >/dev/null 2>&1 || true
-kubectl set env deployment/backend -n "$NS" FRONTEND_ORIGIN- GOOGLE_CALLBACK_URL- >/dev/null 2>&1 || true
+kubectl set env deployment/backend -n "$NS" FRONTEND_ORIGIN- GOOGLE_CALLBACK_URL- AI_ASSISTANT_URL- >/dev/null 2>&1 || true
 helm "${HELM_ARGS[@]}"
 
 echo "==> Restarting deployments to pick up :latest images"
-kubectl rollout restart deployment/backend deployment/frontend -n "$NS"
+DEPS=(deployment/backend deployment/frontend)
+if kubectl get deployment/ai-assistant -n "$NS" >/dev/null 2>&1; then
+  DEPS+=(deployment/ai-assistant)
+fi
+kubectl rollout restart "${DEPS[@]}" -n "$NS"
 kubectl rollout status deployment/backend -n "$NS" --timeout=180s
 kubectl rollout status deployment/frontend -n "$NS" --timeout=180s
+if kubectl get deployment/ai-assistant -n "$NS" >/dev/null 2>&1; then
+  kubectl rollout status deployment/ai-assistant -n "$NS" --timeout=180s
+fi
 
 echo "==> Pods"
 kubectl get pods -n "$NS"
