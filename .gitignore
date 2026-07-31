@@ -1,14 +1,42 @@
+# Dependencies
 node_modules/
+
+# Build / cache
 dist/
 .next/
+.turbo/
+coverage/
+*.tsbuildinfo
+frontend/tsconfig.tsbuildinfo
+frontend/next-env.d.ts.bak
+
+# Python
+ai-assistant/.venv/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Env & local secrets (never commit)
 .env
-.env.local
+.env.*
+!.env.example
+!**/.env.example
 helm/task-tracker/values-local.yaml
 helm/task-tracker/values-production.yaml
-*.log
+
+# Docker / compose local overrides
+docker-compose.override.yml
+
+# OS / editor
 .DS_Store
-coverage/
-.turbo/
-*.tsbuildinfo
+Thumbs.db
+*.log
+.idea/
+*.swp
+*.swo
+
+# Misc local notes
 rag_assistant_cursor_prompt.md
-ai-assistant/.venv/
