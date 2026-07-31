@@ -20,17 +20,23 @@ vulnerability caught during review.
 │  └───────────────────────────────────────────────────────────────-┘ │
 │                                                                     │
 │  ┌──────────────┐   ┌──────────────┐   ┌─────────────────────────┐ │
-│  │  Frontend     │   │  Backend     │   │  PostgreSQL             │ │
+│  │  Frontend     │   │  Backend     │   │  PostgreSQL + pgvector │ │
 │  │  Next.js 15   │──▶│  NestJS      │──▶│  StatefulSet + PVC     │ │
 │  │  App Router   │   │  Prisma ORM  │   │  (1 Gi persistent)     │ │
-│  │  Zustand      │   │  Socket.io   │   └─────────────────────────┘ │
-│  │  dnd-kit      │   │  JWT + RBAC  │                               │
-│  │  Recharts/D3  │   │  Terminus    │   ┌─────────────────────────┐ │
-│  └──────────────┘   └──────────────┘   │  Migrate Job            │ │
-│                                         │  prisma migrate deploy  │ │
-│  ┌────────────────────────────────────┐ └─────────────────────────┘ │
-│  │  HPA (1→3 replicas at 70% CPU)    │                              │
-│  └────────────────────────────────────┘                              │
+│  │  Zustand      │   │  Socket.io   │   └───────────┬─────────────┘ │
+│  │  dnd-kit      │   │  JWT + RBAC  │               │               │
+│  │  Recharts/D3  │   │  Terminus    │               │ SQL + vectors │
+│  └──────────────┘   └──────┬───────┘               │               │
+│                             │ internal HTTP         ▼               │
+│                             │              ┌─────────────────────┐  │
+│                             └─────────────▶│  AI Assistant       │  │
+│                                            │  FastAPI (Python)   │  │
+│                                            │  RAG + Claude       │  │
+│                                            └─────────────────────┘  │
+│  ┌────────────────────────────────────┐ ┌─────────────────────────┐ │
+│  │  HPA (1→3 replicas at 70% CPU)    │ │  Migrate Job            │ │
+│  └────────────────────────────────────┘ │  prisma migrate deploy  │ │
+│                                         └─────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -47,6 +53,7 @@ vulnerability caught during review.
 | State         | Zustand                                            | Lightweight, works great with optimistic updates   |
 | Drag & Drop   | @dnd-kit                                           | Built for reorder + cross-container moves          |
 | Charts        | Recharts + D3                                      | Standard charts + hand-rolled activity heatmap     |
+| AI Assistant  | FastAPI + OpenAI embeddings + Claude + pgvector    | Workspace-scoped RAG; Nest proxies; suggest+confirm |
 | Containers    | Docker (multi-stage)                               | Small production images (~150 MB)                  |
 | Orchestration | Kubernetes (Helm chart)                            | StatefulSet, Ingress, HPA, init containers         |
 | CI            | GitHub Actions                                     | Lint + type-check + test + Docker build on push    |
@@ -69,15 +76,24 @@ Backend at `http://localhost:3001`, frontend at `http://localhost:3000`.
 ### Option 2: Local development
 
 ```
-# Start Postgres
+# Start Postgres (pgvector image) + optional AI service
 docker compose up -d postgres
+# docker compose up -d ai-assistant   # needs OPENAI_API_KEY + ANTHROPIC_API_KEY
 
 # Backend
 cd backend
 cp .env.example .env
+# Set AI_ASSISTANT_URL=http://localhost:8000 when running the Python service
 npm install
 npx prisma migrate dev
 npm run start:dev     # http://localhost:3001
+
+# AI Assistant (separate terminal; Python 3.12 recommended)
+cd ai-assistant
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env   # OPENAI_API_KEY, ANTHROPIC_API_KEY, DATABASE_URL
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 # Frontend (separate terminal)
 cd frontend
@@ -162,25 +178,92 @@ cd backend && npm test
 
 # Frontend unit tests
 cd frontend && npm test
+
+# AI Assistant unit tests
+cd ai-assistant && .venv/bin/python -m pytest
 ```
+
+## AI Assistant (RAG chat)
+
+Workspace-scoped assistant: retrieve relevant tasks (pgvector), answer with Claude,
+and propose mutations that the user must **Apply** (suggest + confirm). The Python
+service never writes to the DB; Nest executes confirmed actions with normal auth/RBAC.
+
+### What it can do
+
+| Capability | How |
+| --- | --- |
+| Q&A over tasks | Vector retrieval + live project task snapshot when on a board |
+| Create / update task | Proposal → existing Nest task APIs (incl. `assigneeId`) |
+| Bulk update / delete tasks | Filter by keyword, assignee, status, **project id/name** |
+| Create project / dedupe / delete project | Nest project APIs (`dedupe` / delete = ADMIN) |
+| Navigate to a project | Client-side `router.push` on **Go** |
+| Follow-ups (“yes”, “да”) | Last ~12 turns sent as `history` |
+| Persist thread | `localStorage` key `tt:assistant-chat:{userId}:{workspaceId}` |
+
+### UI
+
+- Global FAB + right slide-over on workspace/project pages when
+  `Workspace.aiAssistantEnabled` is true
+- Dedicated page `/workspaces/:id/assistant` (same chat body)
+- Board stays visible; task changes update live over Socket.io
+
+### Enable for a workspace (cost gate)
+
+Default is **off**. An operator enables paid LLM usage per workspace:
+
+```
+cd backend
+npx ts-node scripts/enable-ai-assistant.ts <workspaceId>
+```
+
+Optional demo data + embeddings seed:
+
+```
+cd backend
+npx ts-node scripts/seed-rag-demo.ts
+```
+
+### Security notes
+
+- Nest verifies workspace membership before calling Python
+- Retrieval / catalog SQL always filter by `workspaceId`
+- Empty bulk filters rejected (no “update entire workspace” by accident)
+- On a project board, bulk “all tasks” is forced to that `projectId`
+- On workspace home, ambiguous “all tasks” asks which project
+- Access tokens are never stored in `localStorage` (chat text only)
+
+### Env
+
+| Service | Variable | Notes |
+| --- | --- | --- |
+| Backend | `AI_ASSISTANT_URL` | e.g. `http://localhost:8000` |
+| AI Assistant | `DATABASE_URL` | Same Postgres (asyncpg) |
+| AI Assistant | `OPENAI_API_KEY` | Embeddings |
+| AI Assistant | `ANTHROPIC_API_KEY` | Chat + proposal extraction |
 
 ## Repo structure
 
 ```
 task-tracker/
 ├── .github/workflows/ci.yml    # GitHub Actions: test + build
-├── docker-compose.yml           # Local: Postgres + backend + frontend
+├── docker-compose.yml           # Local: Postgres (pgvector) + backend + frontend + ai-assistant
 ├── helm/task-tracker/           # Self-authored Helm chart
 │   ├── Chart.yaml
 │   ├── values.yaml
 │   └── templates/               # 14 K8s manifests
+├── ai-assistant/                # FastAPI RAG microservice (internal only)
+│   ├── app/                     # retrieval, generation, workspace_context
+│   └── tests/
 ├── backend/                     # NestJS API
-│   ├── prisma/schema.prisma     # Data model source of truth
+│   ├── prisma/schema.prisma     # Data model source of truth (+ TaskEmbedding)
+│   ├── scripts/                 # enable-ai-assistant, seed-rag-demo
 │   └── src/
 │       ├── auth/                # JWT + refresh token rotation + grace period
+│       ├── assistant/           # SSE proxy, embedding reindex listener, cost gate
 │       ├── workspaces/          # CRUD + RBAC guards
-│       ├── projects/            # CRUD, workspace-scoped
-│       ├── tasks/               # CRUD + reorder (fractional indexing)
+│       ├── projects/            # CRUD, dedupe, workspace-scoped
+│       ├── tasks/               # CRUD + reorder + bulk-update/delete
 │       ├── analytics/           # Status breakdown, activity, assignee load
 │       ├── events/              # Socket.io Gateway (room-per-workspace)
 │       └── health/              # /health/live + /health/ready (Terminus)
@@ -189,9 +272,9 @@ task-tracker/
         ├── app/
         │   ├── api/auth/        # BFF routes (login, register, refresh, logout)
         │   ├── auth/            # Login & register pages
-        │   └── workspaces/      # Workspace → project → Kanban board
-        ├── components/          # Board columns, task cards, modals, UI kit
-        ├── lib/                 # api-client, auth-context, stores
+        │   └── workspaces/      # Workspace → project → Kanban + /assistant
+        ├── components/          # Board, assistant chat/panel, UI kit
+        ├── lib/                 # api-client, assistant-sse, chat storage
         └── middleware.ts        # Token refresh + access token injection for RSC
 ```
 
