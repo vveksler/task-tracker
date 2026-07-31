@@ -36,8 +36,14 @@ export const redisConfig = registerAs('redis', () => ({
   url: process.env['REDIS_URL'] ?? '',
 }));
 
+// Internal URL of the Python RAG microservice (never exposed via Ingress).
+export const assistantConfig = registerAs('assistant', () => ({
+  url: process.env['AI_ASSISTANT_URL'] ?? 'http://localhost:8000',
+}));
+
 export type AppConfig = ReturnType<typeof appConfig>;
 export type JwtConfig = ReturnType<typeof jwtConfig>;
 export type GoogleConfig = ReturnType<typeof googleConfig>;
 export type MailConfig = ReturnType<typeof mailConfig>;
 export type RedisConfig = ReturnType<typeof redisConfig>;
+export type AssistantConfig = ReturnType<typeof assistantConfig>;

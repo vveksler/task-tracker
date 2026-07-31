@@ -10,3 +10,5 @@ helm/task-tracker/values-production.yaml
 coverage/
 .turbo/
 *.tsbuildinfo
+rag_assistant_cursor_prompt.md
+ai-assistant/.venv/

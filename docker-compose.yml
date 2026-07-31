@@ -1,6 +1,8 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    # pgvector image — same Postgres 16, plus the vector extension the
+    # RAG assistant needs. Creds/DB name unchanged from the alpine image.
+    image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
       POSTGRES_USER: tracker
@@ -45,17 +47,33 @@ services:
       FRONTEND_ORIGIN: "http://localhost:3000"
       PORT: "3001"
       NODE_ENV: "production"
+      AI_ASSISTANT_URL: "http://ai-assistant:8000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      ai-assistant:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3001/health/ready || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 15s
+
+  ai-assistant:
+    build: ./ai-assistant
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "postgresql://tracker:tracker@postgres:5432/task_tracker"
+      OPENAI_API_KEY: "${OPENAI_API_KEY}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   frontend:
     build:

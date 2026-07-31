@@ -37,6 +37,7 @@ export class WorkspacesService {
         name: true,
         ownerId: true,
         createdAt: true,
+        aiAssistantEnabled: true,
       },
     });
   }
@@ -51,6 +52,7 @@ export class WorkspacesService {
         name: true,
         ownerId: true,
         createdAt: true,
+        aiAssistantEnabled: true,
         _count: { select: { members: true, projects: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -65,6 +67,7 @@ export class WorkspacesService {
         name: true,
         ownerId: true,
         createdAt: true,
+        aiAssistantEnabled: true,
         members: {
           select: {
             userId: true,
@@ -87,7 +90,13 @@ export class WorkspacesService {
     return this.prisma.workspace.update({
       where: { id: workspaceId },
       data: { name: dto.name },
-      select: { id: true, name: true, ownerId: true, createdAt: true },
+      select: {
+        id: true,
+        name: true,
+        ownerId: true,
+        createdAt: true,
+        aiAssistantEnabled: true,
+      },
     });
   }
 

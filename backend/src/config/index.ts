@@ -4,6 +4,7 @@ export {
   googleConfig,
   mailConfig,
   redisConfig,
+  assistantConfig,
 } from './app.config';
 export type {
   AppConfig,
@@ -11,4 +12,5 @@ export type {
   GoogleConfig,
   MailConfig,
   RedisConfig,
+  AssistantConfig,
 } from './app.config';

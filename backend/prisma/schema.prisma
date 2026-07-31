@@ -89,6 +89,10 @@ model Workspace {
   ownerId   String
   owner     User     @relation("WorkspaceOwner", fields: [ownerId], references: [id])
   createdAt DateTime @default(now())
+  // Operator-controlled cost gate for the RAG assistant. Default false so
+  // paid LLM/embedding calls stay off until a workspace is explicitly approved.
+  // Workspace ADMIN cannot flip this — use scripts/enable-ai-assistant.ts.
+  aiAssistantEnabled Boolean @default(false)
 
   members  WorkspaceMember[]
   projects Project[]
@@ -141,8 +145,24 @@ model Task {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  embedding TaskEmbedding?
+
   @@index([projectId, status])
   @@index([assigneeId])
   @@index([projectId, createdAt])
   @@map("tasks")
+}
+
+// pgvector embeddings for the RAG assistant. Prisma cannot model vector
+// natively — Unsupported keeps the client aware of the table while the
+// actual type lives in the raw SQL migration.
+model TaskEmbedding {
+  id        String                       @id @default(uuid())
+  taskId    String                       @unique
+  task      Task                         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  embedding Unsupported("vector(1536)")
+  content   String
+  updatedAt DateTime                     @updatedAt
+
+  @@map("task_embeddings")
 }

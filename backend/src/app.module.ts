@@ -1,11 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import {
   appConfig,
   jwtConfig,
   googleConfig,
   mailConfig,
   redisConfig,
+  assistantConfig,
 } from './config';
 import { PrismaModule } from './prisma/prisma.module';
 import { HealthModule } from './health/health.module';
@@ -16,13 +18,22 @@ import { ProjectsModule } from './projects/projects.module';
 import { TasksModule } from './tasks/tasks.module';
 import { GatewayModule } from './gateway/gateway.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { AssistantModule } from './assistant/assistant.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, jwtConfig, googleConfig, mailConfig, redisConfig],
+      load: [
+        appConfig,
+        jwtConfig,
+        googleConfig,
+        mailConfig,
+        redisConfig,
+        assistantConfig,
+      ],
     }),
+    EventEmitterModule.forRoot(),
     PrismaModule,
     MailModule,
     HealthModule,
@@ -32,6 +43,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
     TasksModule,
     GatewayModule,
     AnalyticsModule,
+    AssistantModule,
   ],
 })
 export class AppModule {}
