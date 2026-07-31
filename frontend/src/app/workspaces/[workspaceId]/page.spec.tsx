@@ -35,6 +35,18 @@ jest.mock('@/lib/workspace-context', () => ({
   useWorkspace: () => mockWorkspaceCtx,
 }));
 
+const mockOpenAssistant = jest.fn();
+jest.mock('@/lib/assistant-context', () => ({
+  useAssistant: () => ({
+    isOpen: false,
+    open: mockOpenAssistant,
+    close: jest.fn(),
+    toggle: jest.fn(),
+    subscribeApplied: () => () => undefined,
+    notifyApplied: jest.fn(),
+  }),
+}));
+
 jest.mock('@/lib/auth-context', () => ({
   useAuth: () => ({
     user: { id: 'user-admin', email: 'admin@test.com', name: 'Admin' },

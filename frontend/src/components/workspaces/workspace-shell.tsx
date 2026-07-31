@@ -1,6 +1,8 @@
 'use client';
 
 import { WorkspaceProvider } from '@/lib/workspace-context';
+import { AssistantProvider } from '@/lib/assistant-context';
+import { AssistantPanel } from '@/components/assistant/assistant-panel';
 import type { Workspace } from '@/types/api';
 
 interface WorkspaceShellProps {
@@ -11,8 +13,7 @@ interface WorkspaceShellProps {
 
 /**
  * Thin client wrapper that hydrates WorkspaceProvider with server-fetched data.
- * Context providers must be Client Components, but the layout that fetches
- * data is a Server Component — this bridges the two.
+ * Also mounts the global AI Assistant slide-over when the workspace is entitled.
  */
 export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
   workspaceId,
@@ -20,6 +21,11 @@ export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
   children,
 }) => (
   <WorkspaceProvider workspaceId={workspaceId} initialData={workspace}>
-    {children}
+    <AssistantProvider>
+      {children}
+      {workspace.aiAssistantEnabled && (
+        <AssistantPanel workspaceId={workspaceId} />
+      )}
+    </AssistantProvider>
   </WorkspaceProvider>
 );

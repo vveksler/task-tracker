@@ -1,10 +1,11 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 import { useWorkspace } from '@/lib/workspace-context';
+import { useAssistant } from '@/lib/assistant-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MembersPanel } from '@/components/workspaces/members-panel';
@@ -21,11 +22,32 @@ export const WorkspaceDetailContent: React.FC<WorkspaceDetailContentProps> = ({
 }) => {
   const router = useRouter();
   const { workspace, isOwner, isAdmin, isLoading: wsLoading, refetch } = useWorkspace();
+  const { subscribeApplied } = useAssistant();
 
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+
+  const refetchProjects = useCallback(async () => {
+    const next = await apiFetch<Project[]>(
+      `/workspaces/${workspaceId}/projects`,
+    );
+    setProjects(next);
+  }, [workspaceId]);
+
+  // Hot-refresh project list after AI Apply of create/dedupe/delete project.
+  useEffect(() => {
+    return subscribeApplied((proposal) => {
+      if (
+        proposal.type === 'create_project' ||
+        proposal.type === 'dedupe_projects' ||
+        proposal.type === 'delete_project'
+      ) {
+        void refetchProjects();
+      }
+    });
+  }, [subscribeApplied, refetchProjects]);
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState('');
@@ -156,7 +178,7 @@ export const WorkspaceDetailContent: React.FC<WorkspaceDetailContentProps> = ({
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-3">
         <Link
           href={`/workspaces/${workspaceId}/analytics`}
           className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"

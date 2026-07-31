@@ -102,6 +102,52 @@ export async function apiFetch<T>(
   return res.json() as Promise<T>;
 }
 
+/**
+ * Same auth/refresh behaviour as apiFetch, but returns the raw Response
+ * for streaming bodies (SSE). Does not consume or parse the body on success.
+ */
+export async function apiFetchStream(
+  path: string,
+  init?: RequestInit,
+): Promise<Response> {
+  const headers = new Headers(init?.headers);
+
+  if (accessToken) {
+    headers.set('Authorization', `Bearer ${accessToken}`);
+  }
+
+  if (
+    init?.body &&
+    typeof init.body === 'string' &&
+    !headers.has('Content-Type')
+  ) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  let res = await fetch(`${API_URL}${path}`, { ...init, headers });
+
+  if (res.status === 401 && accessToken) {
+    const refreshed = await tryRefresh();
+    if (refreshed) {
+      headers.set('Authorization', `Bearer ${accessToken}`);
+      res = await fetch(`${API_URL}${path}`, { ...init, headers });
+    } else {
+      accessToken = null;
+      onSessionExpired?.();
+    }
+  }
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ message: res.statusText }));
+    throw new ApiError(
+      res.status,
+      (body as { message?: string }).message ?? res.statusText,
+    );
+  }
+
+  return res;
+}
+
 // ── Auth helpers — all go through the BFF (same-origin /api/auth/*) ──
 
 export async function apiLogin(
