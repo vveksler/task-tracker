@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from app.embeddings import embed_text
 from app.retrieval import retrieve_relevant_tasks
 from app.generation import retrieval_query, stream_answer
-from app.db import get_pool, close_pool
+from app.db import get_pool, close_pool, try_connect_pool
 
 app = FastAPI(title="task-tracker-ai-assistant")
 
@@ -40,7 +40,9 @@ class EmbedRequest(BaseModel):
 
 @app.on_event("startup")
 async def startup() -> None:
-    await get_pool()
+    # Do not block process start on DB — Railway healthcheck hits /health/live.
+    # Pool is created lazily; readiness still verifies Postgres.
+    await try_connect_pool()
 
 
 @app.on_event("shutdown")
@@ -48,8 +50,10 @@ async def shutdown() -> None:
     await close_pool()
 
 
+@app.get("/")
 @app.get("/health/live")
 async def health_live() -> dict:
+    # "/" included so platforms that default-healthcheck "/" still pass.
     return {"status": "ok"}
 
 
