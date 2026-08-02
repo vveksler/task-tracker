@@ -41,9 +41,14 @@ export class AssistantService {
         }),
       });
     } catch (err) {
-      this.logger.error('Failed to reach AI assistant service', err);
+      const cause =
+        err instanceof Error ? err.message : String(err ?? 'unknown error');
+      // Log the configured base URL (no secrets) so Railway misconfig is obvious.
+      this.logger.error(
+        `Failed to reach AI assistant at ${this.baseUrl}/internal/assistant/ask: ${cause}`,
+      );
       throw new ServiceUnavailableException(
-        'AI assistant service is unavailable',
+        `AI assistant service is unavailable (${this.baseUrl}: ${cause})`,
       );
     }
 

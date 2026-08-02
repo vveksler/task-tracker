@@ -157,10 +157,18 @@ Railway does **not** use Helm `values.yaml`. Set Variables on each service in th
 | `FRONTEND_ORIGIN` | `https://<frontend>.up.railway.app` (exact, for CORS + email links) |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google Cloud OAuth client |
 | `GOOGLE_CALLBACK_URL` | `https://<frontend>.up.railway.app/api/auth/google/callback` |
-| `MAIL_HOST` / `MAIL_PORT` / `MAIL_USER` / `MAIL_PASS` / `MAIL_FROM` | SMTP (local / Pro only — Hobby blocks SMTP) |
-| `RESEND_API_KEY` | **Preferred on Railway Hobby** — HTTPS email API ([Resend](https://resend.com)); set `MAIL_FROM` too |
-| `AI_ASSISTANT_URL` | Private URL of the AI service, e.g. `http://ai-assistant.railway.internal:8000` |
+| `MAIL_HOST` / `MAIL_PORT` / `MAIL_USER` / `MAIL_PASS` | SMTP only if not using Resend (Hobby blocks SMTP) |
+| `RESEND_API_KEY` | **Preferred** — [Resend](https://resend.com) HTTPS API |
+| `MAIL_FROM` | After domain verify: `Task Tracker <noreply@yourdomain.com>` |
+| `AI_ASSISTANT_URL` | Private URL of the AI service. Prefer a Variable Reference, e.g. `http://${{ai-assistant.RAILWAY_PRIVATE_DOMAIN}}:${{ai-assistant.PORT}}` (use your AI service’s exact name; port is often `8080` on Railway) |
 | `NODE_ENV` | `production` |
+
+**Email (forgot-password / verify):** use Resend with a verified domain. Add the
+domain in Resend → copy SPF/DKIM into Cloudflare DNS (DKIM records = **DNS only**,
+not Proxied) → wait for Verified → set `RESEND_API_KEY` + `MAIL_FROM` on Nest
+(local `.env` and Railway). Reset links use `FRONTEND_ORIGIN` (app URL stays on
+localhost / Railway; the custom domain is only for the From address unless you
+later attach a subdomain to the frontend).
 
 **Frontend service** (Next):
 
