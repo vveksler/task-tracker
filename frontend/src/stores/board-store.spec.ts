@@ -41,19 +41,37 @@ describe('BoardStore', () => {
       tasks: [],
       isLoading: false,
       error: null,
+      boardProjectId: null,
     });
     mockApiFetch.mockReset();
   });
 
   describe('syncTasks', () => {
     it('should replace tasks and set isLoading to false', () => {
-      useBoardStore.setState({ isLoading: true });
+      useBoardStore.setState({ isLoading: true, boardProjectId: null });
       const tasks = [makeTask({ id: 'a' }), makeTask({ id: 'b' })];
 
-      useBoardStore.getState().syncTasks(tasks);
+      useBoardStore.getState().syncTasks(tasks, 'proj-1');
 
       expect(useBoardStore.getState().tasks).toHaveLength(2);
       expect(useBoardStore.getState().isLoading).toBe(false);
+      expect(useBoardStore.getState().boardProjectId).toBe('proj-1');
+    });
+  });
+
+  describe('reset', () => {
+    it('should clear tasks, mark loading, and clear boardProjectId', () => {
+      useBoardStore.setState({
+        tasks: [makeTask()],
+        isLoading: false,
+        boardProjectId: 'proj-1',
+      });
+
+      useBoardStore.getState().reset();
+
+      expect(useBoardStore.getState().tasks).toHaveLength(0);
+      expect(useBoardStore.getState().isLoading).toBe(true);
+      expect(useBoardStore.getState().boardProjectId).toBeNull();
     });
   });
 

@@ -23,6 +23,7 @@ interface BoardColumnProps {
   workspaceId: string;
   projectId: string;
   onTaskClick?: (task: Task) => void;
+  onStatusChange?: (taskId: string, status: TaskStatus) => void;
 }
 
 export const BoardColumn: React.FC<BoardColumnProps> = ({
@@ -31,6 +32,7 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
   workspaceId,
   projectId,
   onTaskClick,
+  onStatusChange,
 }) => {
   const { label, color } = COLUMN_META[status];
   const createTask = useBoardStore((s) => s.createTask);
@@ -87,6 +89,7 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
                 key={task.id}
                 task={task}
                 onClick={() => onTaskClick?.(task)}
+                onStatusChange={onStatusChange}
               />
             ))}
           </SortableContext>

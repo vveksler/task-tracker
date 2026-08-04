@@ -18,11 +18,16 @@ interface BoardState {
   tasks: Task[];
   isLoading: boolean;
   error: string | null;
+  /**
+   * Project whose tasks are currently in `tasks`. Used to avoid flashing the
+   * previous project's board before reset/sync for the new projectId.
+   */
+  boardProjectId: string | null;
 
   /** Clear tasks and show loading spinner — call when switching projects */
   reset: () => void;
   loadTasks: (workspaceId: string, projectId: string) => Promise<void>;
-  syncTasks: (tasks: Task[]) => void;
+  syncTasks: (tasks: Task[], projectId: string) => void;
   addTask: (task: Task) => void;
   updateTask: (task: Task) => void;
   removeTask: (taskId: string) => void;
@@ -56,16 +61,23 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   tasks: [],
   isLoading: false,
   error: null,
+  boardProjectId: null,
 
-  reset: () => set({ tasks: [], isLoading: true, error: null }),
+  reset: () =>
+    set({ tasks: [], isLoading: true, error: null, boardProjectId: null }),
 
   loadTasks: async (workspaceId, projectId) => {
-    set({ tasks: [], isLoading: true, error: null });
+    set({
+      tasks: [],
+      isLoading: true,
+      error: null,
+      boardProjectId: null,
+    });
     try {
       const tasks = await apiFetch<Task[]>(
         `/workspaces/${workspaceId}/tasks?projectId=${projectId}`,
       );
-      set({ tasks, isLoading: false });
+      set({ tasks, isLoading: false, boardProjectId: projectId });
     } catch (err) {
       set({
         isLoading: false,
@@ -74,7 +86,8 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     }
   },
 
-  syncTasks: (tasks) => set({ tasks, isLoading: false }),
+  syncTasks: (tasks, projectId) =>
+    set({ tasks, isLoading: false, boardProjectId: projectId }),
 
   addTask: (task) =>
     set((state) => {

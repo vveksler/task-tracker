@@ -1,10 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   closestCorners,
@@ -17,7 +18,7 @@ import type { Task, TaskStatus, BoardSyncEvent, TaskCreatedEvent, TaskUpdatedEve
 import { useBoardStore } from '@/stores/board-store';
 import { connectSocket, disconnectSocket } from '@/lib/socket';
 import { BoardColumn } from './board-column';
-import { TaskCard } from './task-card';
+import { TaskCardOverlay } from './task-card';
 import { TaskModal } from './task-modal';
 
 const COLUMNS: TaskStatus[] = ['TODO', 'IN_PROGRESS', 'IN_REVIEW', 'DONE'];
@@ -52,6 +53,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   const {
     tasks,
     isLoading,
+    boardProjectId,
     error,
     reset,
     syncTasks,
@@ -86,47 +88,52 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   const storeRef = useRef({ syncTasks, addTask, updateTask, removeTask });
   storeRef.current = { syncTasks, addTask, updateTask, removeTask };
 
-  // Clear stale data and show loading spinner immediately when projectId
-  // changes — prevents the old project's tasks from flashing before
-  // board:sync arrives with the new project's data.
-  useEffect(() => {
+  // useLayoutEffect runs before paint — avoids one frame of the previous
+  // project's tasks (visible on slower mobile devices with useEffect).
+  // Cleanup clears boardProjectId on leave so remounting the same project
+  // cannot paint stale tasks before the next reset/sync.
+  useLayoutEffect(() => {
     reset();
+    return () => {
+      reset();
+    };
   }, [projectId, reset]);
 
   // Socket.io connection — board:sync on join provides the initial task list,
   // so no separate REST fetch is needed.
   useEffect(() => {
     const socket = connectSocket();
+    const activeProjectId = projectId;
 
-    socket.emit('workspace:join', { workspaceId, projectId });
+    socket.emit('workspace:join', { workspaceId, projectId: activeProjectId });
 
     socket.on('board:sync', (event: BoardSyncEvent) => {
-      if (event.projectId !== projectId) return;
-      storeRef.current.syncTasks(event.tasks);
+      if (event.projectId !== activeProjectId) return;
+      storeRef.current.syncTasks(event.tasks, activeProjectId);
     });
 
     socket.on('task:created', (event: TaskCreatedEvent) => {
-      if (event.task.projectId !== projectId) return;
+      if (event.task.projectId !== activeProjectId) return;
       storeRef.current.addTask(event.task);
     });
 
     socket.on('task:updated', (event: TaskUpdatedEvent) => {
-      if (event.task.projectId !== projectId) return;
+      if (event.task.projectId !== activeProjectId) return;
       storeRef.current.updateTask(event.task);
     });
 
     socket.on('task:moved', (event: TaskMovedEvent) => {
-      if (event.task.projectId !== projectId) return;
+      if (event.task.projectId !== activeProjectId) return;
       storeRef.current.updateTask(event.task);
     });
 
     socket.on('task:deleted', (event: TaskDeletedEvent) => {
-      if (event.projectId !== projectId) return;
+      if (event.projectId !== activeProjectId) return;
       storeRef.current.removeTask(event.taskId);
     });
 
     socket.on('connect', () => {
-      socket.emit('workspace:join', { workspaceId, projectId });
+      socket.emit('workspace:join', { workspaceId, projectId: activeProjectId });
     });
 
     return () => {
@@ -141,9 +148,15 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     };
   }, [workspaceId, projectId]);
 
+  // Mouse: small distance so desktop drag feels snappy.
+  // Touch: delay + tolerance so horizontal board scroll / vertical column
+  // scroll win over accidental drags; long-press (~220ms) starts DnD.
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 },
+    useSensor(MouseSensor, {
+      activationConstraint: { distance: 6 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 220, tolerance: 8 },
     }),
   );
 
@@ -166,6 +179,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
       if (task) {
         setActiveTask(task);
         setColumns(groupByStatus(tasks));
+        document.body.classList.add('scroll-locked');
       }
     },
     [tasks],
@@ -237,11 +251,16 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     [findContainer],
   );
 
+  const clearDragLock = useCallback(() => {
+    document.body.classList.remove('scroll-locked');
+  }, []);
+
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, over } = event;
 
       setActiveTask(null);
+      clearDragLock();
 
       if (!over) return;
 
@@ -279,17 +298,31 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         return;
       }
 
-      reorderTask(workspaceId, activeId, overContainer, afterTaskId, beforeTaskId);
+      void reorderTask(workspaceId, activeId, overContainer, afterTaskId, beforeTaskId);
     },
-    [tasks, columns, workspaceId, reorderTask, findContainer],
+    [tasks, columns, workspaceId, reorderTask, findContainer, clearDragLock],
   );
 
   const handleDragCancel = useCallback(() => {
     setActiveTask(null);
     setColumns(storeColumns);
-  }, [storeColumns]);
+    clearDragLock();
+  }, [storeColumns, clearDragLock]);
 
-  if (isLoading) {
+  const handleStatusChange = useCallback(
+    (taskId: string, newStatus: TaskStatus) => {
+      const task = tasks.find((t) => t.id === taskId);
+      if (!task || task.status === newStatus) return;
+      // Append to end of target column (null after/before).
+      void reorderTask(workspaceId, taskId, newStatus, null, null);
+    },
+    [tasks, workspaceId, reorderTask],
+  );
+
+  // Guard against flashing previous project's tasks: require sync for *this* id.
+  const showLoader = isLoading || boardProjectId !== projectId;
+
+  if (showLoader) {
     return (
       <div className="flex justify-center py-12">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-500 border-t-transparent" />
@@ -311,6 +344,10 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         </div>
       )}
 
+      <p className="text-xs text-gray-500 sm:hidden">
+        Hold a card briefly to drag · or use Move on the card
+      </p>
+
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
@@ -328,12 +365,13 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               workspaceId={workspaceId}
               projectId={projectId}
               onTaskClick={(task) => setSelectedTaskId(task.id)}
+              onStatusChange={handleStatusChange}
             />
           ))}
         </div>
 
-        <DragOverlay>
-          {activeTask ? <TaskCard task={activeTask} /> : null}
+        <DragOverlay dropAnimation={null}>
+          {activeTask ? <TaskCardOverlay task={activeTask} /> : null}
         </DragOverlay>
       </DndContext>
 

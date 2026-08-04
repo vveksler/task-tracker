@@ -20,10 +20,11 @@
     display: flex;
     gap: 1rem;
     overflow-x: auto;
-    padding: 0.25rem 0.25rem 1rem;
+    padding: 0.5rem 0.5rem 1.25rem;
     -webkit-overflow-scrolling: touch;
     scroll-snap-type: x proximity;
     overscroll-behavior-x: contain;
+    scrollbar-width: thin;
   }
 
   .kanban-column {
@@ -32,6 +33,12 @@
     flex-shrink: 0;
     flex-direction: column;
     scroll-snap-align: start;
+    scroll-snap-stop: always;
+    max-height: min(70vh, 36rem);
+  }
+
+  .task-card-handle {
+    touch-action: none;
   }
 
   /* Task detail modal shell */
@@ -114,14 +121,24 @@
 @media (max-width: 639px) {
   .kanban-board-scroll {
     gap: 0.75rem;
-    /* Bleed to viewport edges inside padded main */
+    /* Side gutters so the active column isn't edge-to-edge; peek next column */
     margin-inline: -0.75rem;
-    padding-inline: 0.75rem;
+    padding-inline: 1rem;
+    padding-bottom: 1.5rem;
     scroll-snap-type: x mandatory;
+    scroll-padding-inline: 1rem;
   }
 
   .kanban-column {
-    width: min(85vw, 18rem);
+    /* Leave ~15% peek of the next column to hint horizontal scroll */
+    width: min(78vw, 18rem);
+    max-height: min(65dvh, 32rem);
+  }
+
+  .task-card-handle {
+    /* Larger hit target on phones */
+    height: 2.25rem;
+    width: 2rem;
   }
 
   .task-modal-backdrop {

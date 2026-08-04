@@ -3,8 +3,15 @@
 import { useMemo } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { Task, WorkspaceMember } from '@/types/api';
+import type { Task, TaskStatus, WorkspaceMember } from '@/types/api';
 import { useWorkspace } from '@/lib/workspace-context';
+
+const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
+  { value: 'TODO', label: 'To Do' },
+  { value: 'IN_PROGRESS', label: 'In Progress' },
+  { value: 'IN_REVIEW', label: 'In Review' },
+  { value: 'DONE', label: 'Done' },
+];
 
 function getInitials(name: string): string {
   return name
@@ -34,12 +41,7 @@ function colorForUser(userId: string): string {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]!;
 }
 
-interface TaskCardProps {
-  task: Task;
-  onClick?: () => void;
-}
-
-export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick }) => {
+function TaskCardBody({ task }: { task: Task }) {
   const { workspace } = useWorkspace();
 
   const assignee: WorkspaceMember | undefined = useMemo(
@@ -50,38 +52,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick }) => {
     [task.assigneeId, workspace?.members],
   );
 
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: task.id, data: { task } });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`
-        rounded-lg border border-gray-200 bg-white p-3 shadow-sm
-        cursor-grab active:cursor-grabbing
-        ${isDragging ? 'opacity-50 shadow-lg ring-2 ring-brand-500' : 'hover:shadow-md'}
-      `}
-      {...attributes}
-      {...listeners}
-      onPointerUp={(e) => {
-        if (!isDragging && onClick) {
-          e.stopPropagation();
-          onClick();
-        }
-      }}
-    >
+    <>
       <p className="text-sm font-medium text-gray-900">{task.title}</p>
       {task.description && (
         <p className="mt-1 text-xs text-gray-500 line-clamp-2">
@@ -98,6 +70,115 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick }) => {
           </span>
           <span className="text-xs text-gray-400">{assignee.user.name}</span>
         </div>
+      )}
+    </>
+  );
+}
+
+/** Non-sortable clone for DragOverlay (must not call useSortable). */
+export const TaskCardOverlay: React.FC<{ task: Task }> = ({ task }) => (
+  <div className="task-card rounded-lg border border-gray-200 bg-white p-3 shadow-xl ring-2 ring-brand-500">
+    <div className="flex gap-2">
+      <span className="mt-0.5 flex h-8 w-7 shrink-0 items-center justify-center text-gray-400">
+        ⠿
+      </span>
+      <div className="min-w-0 flex-1">
+        <TaskCardBody task={task} />
+      </div>
+    </div>
+  </div>
+);
+
+interface TaskCardProps {
+  task: Task;
+  onClick?: () => void;
+  onStatusChange?: (taskId: string, status: TaskStatus) => void;
+}
+
+export const TaskCard: React.FC<TaskCardProps> = ({
+  task,
+  onClick,
+  onStatusChange,
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: task.id,
+    data: { task },
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`
+        task-card rounded-lg border border-gray-200 bg-white p-3 shadow-sm
+        ${isDragging ? 'opacity-40 shadow-lg ring-2 ring-brand-500' : 'hover:shadow-md'}
+      `}
+    >
+      <div className="flex gap-2">
+        <button
+          type="button"
+          ref={setActivatorNodeRef}
+          className="task-card-handle mt-0.5 flex h-8 w-7 shrink-0 touch-none items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          aria-label="Drag to move task"
+          {...attributes}
+          {...listeners}
+        >
+          <span aria-hidden className="text-base leading-none tracking-tighter">
+            ⠿
+          </span>
+        </button>
+
+        <div
+          className="min-w-0 flex-1 cursor-pointer"
+          onClick={() => onClick?.()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onClick?.();
+            }
+          }}
+          role={onClick ? 'button' : undefined}
+          tabIndex={onClick ? 0 : undefined}
+        >
+          <TaskCardBody task={task} />
+        </div>
+      </div>
+
+      {onStatusChange && (
+        <label className="mt-2 flex items-center gap-2 sm:hidden">
+          <span className="shrink-0 text-[11px] font-medium uppercase tracking-wide text-gray-400">
+            Move
+          </span>
+          <select
+            className="min-w-0 flex-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5 text-xs text-gray-700 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            value={task.status}
+            aria-label="Move task to column"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              onStatusChange(task.id, e.target.value as TaskStatus);
+            }}
+          >
+            {STATUS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </label>
       )}
     </div>
   );
