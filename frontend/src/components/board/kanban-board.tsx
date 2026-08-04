@@ -65,6 +65,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   } = useBoardStore();
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [overColumn, setOverColumn] = useState<TaskStatus | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   // Derive selectedTask from the store so WS updates are reflected in the modal
@@ -188,13 +189,20 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   const handleDragOver = useCallback(
     (event: DragOverEvent) => {
       const { active, over } = event;
-      if (!over) return;
+      if (!over) {
+        setOverColumn(null);
+        return;
+      }
 
       const activeId = active.id as string;
       const overId = over.id as string;
 
       const activeContainer = findContainer(activeId);
       const overContainer = findContainer(overId);
+
+      // Highlight whole column even when pointer is over a card inside it
+      // (useDroppable isOver alone is false in that case).
+      setOverColumn(overContainer);
 
       if (!activeContainer || !overContainer) return;
 
@@ -260,6 +268,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
       const { active, over } = event;
 
       setActiveTask(null);
+      setOverColumn(null);
       clearDragLock();
 
       if (!over) return;
@@ -305,6 +314,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
   const handleDragCancel = useCallback(() => {
     setActiveTask(null);
+    setOverColumn(null);
     setColumns(storeColumns);
     clearDragLock();
   }, [storeColumns, clearDragLock]);
@@ -364,6 +374,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               tasks={columns[status]}
               workspaceId={workspaceId}
               projectId={projectId}
+              isDropTarget={overColumn === status}
               onTaskClick={(task) => setSelectedTaskId(task.id)}
               onStatusChange={handleStatusChange}
             />

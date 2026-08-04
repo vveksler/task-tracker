@@ -22,6 +22,8 @@ interface BoardColumnProps {
   tasks: Task[];
   workspaceId: string;
   projectId: string;
+  /** True while a card is dragged over this column (incl. over its cards). */
+  isDropTarget?: boolean;
   onTaskClick?: (task: Task) => void;
   onStatusChange?: (taskId: string, status: TaskStatus) => void;
 }
@@ -31,6 +33,7 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
   tasks,
   workspaceId,
   projectId,
+  isDropTarget = false,
   onTaskClick,
   onStatusChange,
 }) => {
@@ -39,7 +42,7 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
   const [showAdd, setShowAdd] = useState(false);
   const [newTitle, setNewTitle] = useState('');
 
-  const { setNodeRef, isOver } = useDroppable({
+  const { setNodeRef } = useDroppable({
     id: `column-${status}`,
     data: { status },
   });
@@ -63,8 +66,8 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
     <div
       ref={setNodeRef}
       className={`
-        kanban-column rounded-xl bg-gray-100 transition-colors
-        ${isOver ? 'ring-2 ring-brand-500 ring-opacity-50' : ''}
+        kanban-column rounded-xl bg-gray-100
+        ${isDropTarget ? 'is-drop-target' : ''}
       `}
     >
       <div className="kanban-column-header flex items-center gap-2 px-3 py-3">
@@ -94,7 +97,7 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
         </SortableContext>
 
         {status === 'TODO' && (
-          <div className="mt-auto shrink-0 pt-1">
+          <div className="shrink-0 pt-1">
             {showAdd ? (
               <form onSubmit={handleAdd} className="space-y-2">
                 <input
