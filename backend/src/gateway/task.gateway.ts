@@ -30,12 +30,9 @@ interface JoinPayload {
   projectId: string;
 }
 
-@WebSocketGateway({
-  cors: {
-    origin: true, // will be narrowed via ConfigService in production
-    credentials: true,
-  },
-})
+// CORS origin is set in SocketIoAdapter (main.ts) from app.frontendOrigin —
+// @WebSocketGateway cannot inject ConfigService at decorator evaluation time.
+@WebSocketGateway()
 export class TaskGateway
   implements
     OnGatewayInit,

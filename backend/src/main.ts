@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
+import { SocketIoAdapter } from './gateway/socket-io.adapter';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
@@ -15,10 +16,12 @@ async function bootstrap(): Promise<void> {
     'http://localhost:3000',
   );
 
+  // Same origin for REST and Socket.io — cookies require an exact whitelist, not *.
   app.enableCors({
     origin: frontendOrigin,
     credentials: true,
   });
+  app.useWebSocketAdapter(new SocketIoAdapter(app, frontendOrigin));
 
   app.use(cookieParser());
 
