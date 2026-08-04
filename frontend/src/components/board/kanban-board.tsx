@@ -331,9 +331,9 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="kanban-board-shell">
       {error && (
-        <div className="flex items-center justify-between rounded-lg bg-red-50 px-4 py-3">
+        <div className="flex shrink-0 items-center justify-between rounded-lg bg-red-50 px-4 py-3">
           <p className="text-sm text-red-700">{error}</p>
           <button
             onClick={clearError}
@@ -344,8 +344,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         </div>
       )}
 
-      <p className="text-xs text-gray-500 sm:hidden">
-        Hold a card briefly to drag · or use Move on the card
+      <p className="shrink-0 text-xs text-gray-500 sm:hidden">
+        Hold the card to drag · or use Move
       </p>
 
       <DndContext

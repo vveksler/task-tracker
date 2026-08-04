@@ -41,8 +41,8 @@ const BoardPage = () => {
   }
 
   return (
-    <div className="space-y-4">
-      <div>
+    <div className="board-page">
+      <div className="board-page-header">
         <Link
           href={`/workspaces/${workspaceId}`}
           className="text-sm text-gray-500 hover:text-gray-700"

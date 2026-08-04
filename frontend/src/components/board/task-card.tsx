@@ -75,17 +75,13 @@ function TaskCardBody({ task }: { task: Task }) {
   );
 }
 
-/** Non-sortable clone for DragOverlay (must not call useSortable). */
+/**
+ * DragOverlay clone — Trello-like “picked up” card: slight lift + tilt.
+ * Must not call useSortable.
+ */
 export const TaskCardOverlay: React.FC<{ task: Task }> = ({ task }) => (
-  <div className="task-card rounded-lg border border-gray-200 bg-white p-3 shadow-xl ring-2 ring-brand-500">
-    <div className="flex gap-2">
-      <span className="mt-0.5 flex h-8 w-7 shrink-0 items-center justify-center text-gray-400">
-        ⠿
-      </span>
-      <div className="min-w-0 flex-1">
-        <TaskCardBody task={task} />
-      </div>
-    </div>
+  <div className="task-card-overlay rounded-lg border border-gray-200 bg-white p-3">
+    <TaskCardBody task={task} />
   </div>
 );
 
@@ -104,7 +100,6 @@ export const TaskCard: React.FC<TaskCardProps> = ({
     attributes,
     listeners,
     setNodeRef,
-    setActivatorNodeRef,
     transform,
     transition,
     isDragging,
@@ -124,38 +119,17 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       style={style}
       className={`
         task-card rounded-lg border border-gray-200 bg-white p-3 shadow-sm
-        ${isDragging ? 'opacity-40 shadow-lg ring-2 ring-brand-500' : 'hover:shadow-md'}
+        cursor-grab touch-manipulation active:cursor-grabbing
+        ${isDragging ? 'opacity-30' : 'hover:shadow-md'}
       `}
+      {...attributes}
+      {...listeners}
+      onClick={() => {
+        // Tap opens the modal; TouchSensor delay means a short press won't drag.
+        if (!isDragging) onClick?.();
+      }}
     >
-      <div className="flex gap-2">
-        <button
-          type="button"
-          ref={setActivatorNodeRef}
-          className="task-card-handle mt-0.5 flex h-8 w-7 shrink-0 touch-none items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-          aria-label="Drag to move task"
-          {...attributes}
-          {...listeners}
-        >
-          <span aria-hidden className="text-base leading-none tracking-tighter">
-            ⠿
-          </span>
-        </button>
-
-        <div
-          className="min-w-0 flex-1 cursor-pointer"
-          onClick={() => onClick?.()}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onClick?.();
-            }
-          }}
-          role={onClick ? 'button' : undefined}
-          tabIndex={onClick ? 0 : undefined}
-        >
-          <TaskCardBody task={task} />
-        </div>
-      </div>
+      <TaskCardBody task={task} />
 
       {onStatusChange && (
         <label className="mt-2 flex items-center gap-2 sm:hidden">

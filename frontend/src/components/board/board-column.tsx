@@ -67,7 +67,7 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
         ${isOver ? 'ring-2 ring-brand-500 ring-opacity-50' : ''}
       `}
     >
-      <div className="flex items-center gap-2 px-3 py-3">
+      <div className="kanban-column-header flex items-center gap-2 px-3 py-3">
         <span className={`h-2.5 w-2.5 rounded-full ${color}`} />
         <h3 className="text-sm font-semibold text-gray-700">{label}</h3>
         <span className="ml-auto rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">
@@ -75,28 +75,26 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
         </span>
       </div>
 
-      <div className="flex flex-1 flex-col overflow-y-auto px-3 pb-3 pt-1">
-        <div className="flex-1 space-y-2">
-          <SortableContext
-            items={sortedTasks.map((t) => t.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            {sortedTasks.length === 0 && !showAdd && (
-              <p className="py-8 text-center text-xs text-gray-400">No tasks yet</p>
-            )}
-            {sortedTasks.map((task) => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                onClick={() => onTaskClick?.(task)}
-                onStatusChange={onStatusChange}
-              />
-            ))}
-          </SortableContext>
-        </div>
+      <div className="kanban-column-list">
+        <SortableContext
+          items={sortedTasks.map((t) => t.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          {sortedTasks.length === 0 && !showAdd && (
+            <p className="py-8 text-center text-xs text-gray-400">No tasks yet</p>
+          )}
+          {sortedTasks.map((task) => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              onClick={() => onTaskClick?.(task)}
+              onStatusChange={onStatusChange}
+            />
+          ))}
+        </SortableContext>
 
         {status === 'TODO' && (
-          <div className="mt-2">
+          <div className="mt-auto shrink-0 pt-1">
             {showAdd ? (
               <form onSubmit={handleAdd} className="space-y-2">
                 <input
