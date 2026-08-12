@@ -149,6 +149,25 @@ describe('parseActionsPayload', () => {
           summary: 'del',
           projectId: 'p1',
         },
+        {
+          type: 'move_tasks_to_project',
+          summary: 'move',
+          sourceProjectId: 'p-src',
+          targetProjectId: 'p-dst',
+        },
+        {
+          type: 'move_tasks_to_project',
+          summary: 'to new',
+          sourceProjectId: 'p-src',
+          targetProjectName: 'Payments2',
+          statusIn: ['DONE'],
+        },
+        {
+          type: 'move_tasks_to_project',
+          summary: 'same',
+          sourceProjectId: 'p1',
+          targetProjectId: 'p1',
+        },
         { type: 'nope', summary: 'x' },
       ],
     })}`;
@@ -180,6 +199,19 @@ describe('parseActionsPayload', () => {
       },
       { type: 'navigate_to_project', summary: 'go', projectId: 'p1' },
       { type: 'delete_project', summary: 'del', projectId: 'p1' },
+      {
+        type: 'move_tasks_to_project',
+        summary: 'move',
+        sourceProjectId: 'p-src',
+        targetProjectId: 'p-dst',
+      },
+      {
+        type: 'move_tasks_to_project',
+        summary: 'to new',
+        sourceProjectId: 'p-src',
+        targetProjectName: 'Payments2',
+        statusIn: ['DONE'],
+      },
     ]);
   });
 });

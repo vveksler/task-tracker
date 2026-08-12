@@ -102,4 +102,22 @@ describe('assistant-chat-storage', () => {
       'pending',
     );
   });
+
+  it('remints colliding and legacy sequential ids on load', () => {
+    window.localStorage.setItem(
+      assistantChatStorageKey('u1', 'ws1'),
+      JSON.stringify([
+        { id: 'user-1', role: 'user', content: 'a' },
+        { id: 'assistant-2', role: 'assistant', content: 'b' },
+        { id: 'user-1', role: 'user', content: 'c' },
+        { id: 'assistant-2', role: 'assistant', content: 'd' },
+      ]),
+    );
+    const loaded = loadAssistantChat('u1', 'ws1');
+    expect(loaded.map((m) => m.content)).toEqual(['a', 'b', 'c', 'd']);
+    expect(new Set(loaded.map((m) => m.id)).size).toBe(4);
+    expect(loaded.every((m) => !/^(user|assistant)-\d+$/.test(m.id))).toBe(
+      true,
+    );
+  });
 });

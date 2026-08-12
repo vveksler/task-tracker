@@ -114,6 +114,41 @@ describe('TasksService.bulkUpdate / bulkDelete', () => {
     );
   });
 
+  it('allows bulk unassign with assigneeId null without membership check', async () => {
+    prisma.project.findUnique.mockResolvedValue({ workspaceId: 'ws-1' });
+    prisma.task.findMany.mockResolvedValue([
+      {
+        id: 't1',
+        title: 'A',
+        description: null,
+        status: TaskStatus.TODO,
+        project: { workspaceId: 'ws-1' },
+      },
+    ]);
+    prisma.task.findUnique.mockResolvedValue({
+      id: 't1',
+      title: 'A',
+      description: null,
+      status: TaskStatus.TODO,
+      order: 1,
+      projectId: 'p1',
+      assigneeId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      project: { workspaceId: 'ws-1' },
+    });
+
+    await service.bulkUpdate('ws-1', {
+      filter: { projectId: 'p1' },
+      patch: { assigneeId: null },
+    });
+
+    expect(prisma.task.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['t1'] } },
+      data: { assigneeId: null },
+    });
+  });
+
   it('emits contentChanged when title/description patched', async () => {
     prisma.task.findMany.mockResolvedValue([
       {

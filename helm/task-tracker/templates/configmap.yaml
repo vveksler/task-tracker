@@ -27,6 +27,6 @@ data:
   GOOGLE_CLIENT_ID: {{ .Values.google.clientId | quote }}
 {{- end }}
 {{- if .Values.aiAssistant.enabled }}
-  # Nest proxies ask/embed to the in-cluster FastAPI service (ClusterIP only).
+  # Nest proxies ask/embed to the in-cluster AI service (ClusterIP only).
   AI_ASSISTANT_URL: "http://ai-assistant:{{ .Values.aiAssistant.port }}"
 {{- end }}

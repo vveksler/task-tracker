@@ -215,7 +215,7 @@ export class TasksService {
     const { filter, patch } = dto;
     const where = await this.buildBulkWhere(workspaceId, filter);
 
-    if (patch.assigneeId !== undefined) {
+    if (patch.assigneeId) {
       await this.validateAssignee(workspaceId, patch.assigneeId);
     }
 

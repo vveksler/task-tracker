@@ -69,7 +69,7 @@ frontend:
     maxReplicas: 3
     targetCPUUtilization: 70
 
-# ── AI Assistant (Python FastAPI RAG) ──
+# ── AI Assistant (TypeScript + LangChain.js RAG) ──
 # ClusterIP only — Nest calls AI_ASSISTANT_URL. Put real keys in values-local /
 # values-production (gitignored). Workspace still needs enable-ai-assistant.ts.
 aiAssistant:

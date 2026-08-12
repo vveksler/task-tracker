@@ -1,16 +1,18 @@
-FROM python:3.12-slim AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+COPY package.json package-lock.json* ./
+RUN npm ci
+COPY tsconfig.json ./
+COPY src ./src
+RUN npm run build && npm prune --omit=dev
 
-FROM python:3.12-slim AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
-COPY --from=builder /root/.local /root/.local
-COPY app ./app
-ENV PATH=/root/.local/bin:$PATH
-ENV PYTHONUNBUFFERED=1
+ENV NODE_ENV=production
 # Railway injects PORT; default 8000 for local/docker-compose.
 ENV PORT=8000
-
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
 EXPOSE 8000
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["node", "dist/index.js"]

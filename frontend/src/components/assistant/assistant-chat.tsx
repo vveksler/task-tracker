@@ -14,6 +14,10 @@ import {
   loadAssistantChat,
   saveAssistantChat,
 } from '@/lib/assistant-chat-storage';
+import {
+  getProposalBlockReason,
+  isUuid,
+} from '@/lib/assistant-proposal-deps';
 import type { AssistantProposal, Project } from '@/types/api';
 
 type ProposalStatus = 'pending' | 'applying' | 'applied' | 'error' | 'dismissed';
@@ -41,21 +45,19 @@ interface AssistantChatProps {
   onApplied?: (proposal: AssistantProposal) => void;
 }
 
-let messageSeq = 0;
 function nextId(prefix: string): string {
-  messageSeq += 1;
-  return `${prefix}-${messageSeq}`;
+  // Must stay unique across reloads: chat is hydrated from localStorage with
+  // prior ids, while a module-level counter would reset and collide (React
+  // "two children with the same key" warnings).
+  const uuid =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `${prefix}-${uuid}`;
 }
 
 function formatProposalType(type: AssistantProposal['type']): string {
   return type.replace(/_/g, ' ');
-}
-
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function isUuid(value: string | undefined): boolean {
-  return typeof value === 'string' && UUID_RE.test(value.trim());
 }
 
 /**
@@ -87,6 +89,43 @@ function bindCreateTaskToProject(
         ...proposal,
         projectId: created.id,
         projectName: created.name,
+      };
+    }
+  }
+  return proposal;
+}
+
+/**
+ * After create_project Apply, bind pending move targets that reference the
+ * new project by name (or placeholder id) instead of a real UUID.
+ */
+function bindMoveTargetToProject(
+  proposal: Extract<AssistantProposal, { type: 'move_tasks_to_project' }>,
+  created: { id: string; name: string },
+  createProjectCountInMessage: number,
+): Extract<AssistantProposal, { type: 'move_tasks_to_project' }> {
+  const tid = proposal.targetProjectId?.trim() ?? '';
+  const tname = proposal.targetProjectName?.trim() ?? '';
+  const nameMatch =
+    (tname && tname.toLowerCase() === created.name.toLowerCase()) ||
+    (tid && tid.toLowerCase() === created.name.toLowerCase());
+
+  if (isUuid(tid) && tid !== created.id) {
+    return proposal;
+  }
+  if (isUuid(tid) && tid === created.id) {
+    return {
+      ...proposal,
+      targetProjectId: created.id,
+      targetProjectName: created.name,
+    };
+  }
+  if (nameMatch || !isUuid(tid)) {
+    if (nameMatch || createProjectCountInMessage <= 1) {
+      return {
+        ...proposal,
+        targetProjectId: created.id,
+        targetProjectName: created.name,
       };
     }
   }
@@ -163,6 +202,31 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
 
   const applyProposal = useCallback(
     async (messageId: string, cardKey: string, proposal: AssistantProposal) => {
+      const host = messages.find((m) => m.id === messageId);
+      const blockReason = host?.proposals
+        ? getProposalBlockReason(
+            { key: cardKey, proposal, status: 'pending' },
+            host.proposals,
+          )
+        : null;
+      if (blockReason) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id !== messageId
+              ? m
+              : {
+                  ...m,
+                  proposals: m.proposals?.map((p) =>
+                    p.key === cardKey
+                      ? { ...p, status: 'error', error: blockReason }
+                      : p,
+                  ),
+                },
+          ),
+        );
+        return;
+      }
+
       setMessages((prev) =>
         prev.map((m) =>
           m.id !== messageId
@@ -262,6 +326,58 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
             `/workspaces/${workspaceId}/projects/${proposal.projectId}`,
           );
           resultNote = 'Opened project';
+        } else if (proposal.type === 'move_tasks_to_project') {
+          if (!isUuid(proposal.targetProjectId)) {
+            throw new Error(
+              proposal.targetProjectName
+                ? `Apply the “create project '${proposal.targetProjectName}'” card first`
+                : 'Apply the create project card first (targetProjectId is not a UUID yet)',
+            );
+          }
+          // Recreate in target, then delete from source (no cross-project PATCH).
+          const sourceTasks = await apiFetch<
+            Array<{
+              title: string;
+              description: string | null;
+              status: string;
+              assigneeId: string | null;
+            }>
+          >(
+            `/workspaces/${workspaceId}/tasks?projectId=${proposal.sourceProjectId}`,
+          );
+          const statusFilter = proposal.statusIn;
+          const toMove =
+            statusFilter && statusFilter.length > 0
+              ? sourceTasks.filter((t) =>
+                  statusFilter.includes(t.status as (typeof statusFilter)[number]),
+                )
+              : sourceTasks;
+          for (const task of toMove) {
+            await apiFetch(`/workspaces/${workspaceId}/tasks`, {
+              method: 'POST',
+              body: JSON.stringify({
+                projectId: proposal.targetProjectId,
+                title: task.title,
+                description: task.description ?? undefined,
+                status: task.status,
+                ...(task.assigneeId ? { assigneeId: task.assigneeId } : {}),
+              }),
+            });
+          }
+          if (toMove.length > 0) {
+            await apiFetch(`/workspaces/${workspaceId}/tasks/bulk-delete`, {
+              method: 'POST',
+              body: JSON.stringify({
+                filter: {
+                  projectId: proposal.sourceProjectId,
+                  ...(statusFilter && statusFilter.length > 0
+                    ? { statusIn: statusFilter }
+                    : {}),
+                },
+              }),
+            });
+          }
+          resultNote = `Moved ${toMove.length} task(s)`;
         } else {
           const _exhaustive: never = proposal;
           throw new Error(`Unknown proposal type: ${JSON.stringify(_exhaustive)}`);
@@ -279,10 +395,16 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
               ...m,
               proposals: m.proposals?.map((p) => {
                 let nextProposal = p.proposal;
-                // Wire pending create_task / navigate cards to the new project id.
+                // Wire pending create_task / move / navigate cards to the new project id.
                 if (createdProject && p.status === 'pending') {
                   if (nextProposal.type === 'create_task') {
                     nextProposal = bindCreateTaskToProject(
+                      nextProposal,
+                      createdProject,
+                      createProjectCount,
+                    );
+                  } else if (nextProposal.type === 'move_tasks_to_project') {
+                    nextProposal = bindMoveTargetToProject(
                       nextProposal,
                       createdProject,
                       createProjectCount,
@@ -348,7 +470,7 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
         );
       }
     },
-    [workspaceId, onApplied, assistantCtx, router],
+    [workspaceId, onApplied, assistantCtx, router, messages],
   );
 
   const dismissProposal = useCallback((messageId: string, cardKey: string) => {
@@ -518,7 +640,12 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
                 <ul className="mt-3 space-y-2">
                   {msg.proposals
                     .filter((p) => p.status !== 'dismissed')
-                    .map((card) => (
+                    .map((card) => {
+                      const blockReason =
+                        card.status === 'pending' || card.status === 'error'
+                          ? getProposalBlockReason(card, msg.proposals ?? [])
+                          : null;
+                      return (
                       <li
                         key={card.key}
                         className="rounded-md border border-gray-200 bg-white px-3 py-2"
@@ -529,6 +656,11 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
                         <p className="mt-0.5 text-xs capitalize text-gray-500">
                           {formatProposalType(card.proposal.type)}
                         </p>
+                        {blockReason && (
+                          <p className="mt-1 text-xs text-amber-700">
+                            {blockReason}
+                          </p>
+                        )}
                         {card.status === 'error' && card.error && (
                           <p className="mt-1 text-xs text-red-600" role="alert">
                             {card.error}
@@ -546,7 +678,9 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
                               type="button"
                               size="sm"
                               isLoading={card.status === 'applying'}
-                              disabled={card.status === 'applying'}
+                              disabled={
+                                card.status === 'applying' || !!blockReason
+                              }
                               onClick={() =>
                                 void applyProposal(
                                   msg.id,
@@ -575,11 +709,41 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
                           </div>
                         )}
                       </li>
-                    ))}
+                      );
+                    })}
                 </ul>
               )}
           </div>
         ))}
+        {isStreaming && (
+          <div
+            className="flex items-center gap-2 px-1 py-2 text-xs text-gray-500"
+            role="status"
+            aria-live="polite"
+          >
+            <svg
+              className="h-4 w-4 shrink-0 animate-spin text-gray-400"
+              viewBox="0 0 24 24"
+              fill="none"
+              aria-hidden
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              />
+            </svg>
+            <span>Preparing confirmations…</span>
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
 

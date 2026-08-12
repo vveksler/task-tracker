@@ -115,10 +115,14 @@ export class BulkUpdateTasksPatchDto {
   @MaxLength(2000)
   description?: string;
 
-  @ApiPropertyOptional({ description: 'Assign all matched tasks to this member' })
+  @ApiPropertyOptional({
+    description:
+      'Assign matched tasks to this member, or null to unassign all matched',
+    nullable: true,
+  })
   @IsOptional()
   @IsUUID()
-  assigneeId?: string;
+  assigneeId?: string | null;
 }
 
 @ValidatorConstraint({ name: 'atLeastOnePatchField', async: false })

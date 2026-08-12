@@ -36,7 +36,7 @@ export const redisConfig = registerAs('redis', () => ({
   url: process.env['REDIS_URL'] ?? '',
 }));
 
-// Internal URL of the Python RAG microservice (never exposed via Ingress).
+// Internal URL of the AI RAG microservice (never exposed via Ingress).
 export const assistantConfig = registerAs('assistant', () => ({
   url: process.env['AI_ASSISTANT_URL'] ?? 'http://localhost:8000',
 }));

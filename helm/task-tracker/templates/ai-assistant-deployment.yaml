@@ -58,7 +58,7 @@ spec:
           env:
             - name: PORT
               value: {{ .Values.aiAssistant.port | quote }}
-            # asyncpg DSN — no Prisma ?schema= query param
+            # node-postgres DSN — no Prisma ?schema= query param
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:

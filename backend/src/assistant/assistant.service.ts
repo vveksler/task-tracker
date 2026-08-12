@@ -1,5 +1,5 @@
-// Talks to the Python service over the internal cluster network only
-// (ClusterIP Service, not exposed via Ingress). URL comes from typed
+// Talks to the AI assistant microservice over the internal cluster network
+// only (ClusterIP Service, not exposed via Ingress). URL comes from typed
 // config — never process.env scattered in business logic.
 
 import {
@@ -62,7 +62,7 @@ export class AssistantService {
   }
 
   /**
-   * Upsert the embedding for a task in the Python service.
+   * Upsert the embedding for a task in the AI assistant service.
    * Fire-and-forget from the embedding listener — never await on the
    * task create/update request path.
    */

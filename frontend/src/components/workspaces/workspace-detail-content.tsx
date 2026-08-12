@@ -240,7 +240,10 @@ export const WorkspaceDetailContent: React.FC<WorkspaceDetailContentProps> = ({
             >
               {editingProjectId === project.id ? (
                 <form
-                  onSubmit={(e) => { e.preventDefault(); handleSaveProjectName(project.id); }}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleSaveProjectName(project.id);
+                  }}
                 >
                   <input
                     value={editProjectName}
@@ -251,21 +254,35 @@ export const WorkspaceDetailContent: React.FC<WorkspaceDetailContentProps> = ({
                   />
                 </form>
               ) : (
-                <Link href={`/workspaces/${workspaceId}/projects/${project.id}`}>
-                  <h3 className="text-lg font-semibold text-gray-900">
+                <>
+                  {/* Stretched link: whole card (incl. padding) navigates. */}
+                  <Link
+                    href={`/workspaces/${workspaceId}/projects/${project.id}`}
+                    className="absolute inset-0 z-0 rounded-lg"
+                    aria-label={`Open project ${project.name}`}
+                  />
+                  <h3
+                    className={`relative z-[1] pointer-events-none text-lg font-semibold text-gray-900${
+                      isAdmin ? ' pr-16' : ''
+                    }`}
+                  >
                     {project.name}
                   </h3>
                   {project.description && (
-                    <p className="mt-1 text-sm text-gray-500">{project.description}</p>
+                    <p className="relative z-[1] mt-1 pointer-events-none text-sm text-gray-500">
+                      {project.description}
+                    </p>
                   )}
-                </Link>
+                </>
               )}
 
               {isAdmin && editingProjectId !== project.id && (
-                <div className="absolute right-3 top-3 flex gap-1">
+                <div className="absolute right-3 top-3 z-10 flex gap-1">
                   <button
+                    type="button"
                     onClick={(e) => {
                       e.preventDefault();
+                      e.stopPropagation();
                       setEditProjectName(project.name);
                       setEditingProjectId(project.id);
                     }}
@@ -274,8 +291,10 @@ export const WorkspaceDetailContent: React.FC<WorkspaceDetailContentProps> = ({
                     Edit
                   </button>
                   <button
+                    type="button"
                     onClick={(e) => {
                       e.preventDefault();
+                      e.stopPropagation();
                       handleDeleteProject(project.id);
                     }}
                     className="rounded p-1 text-xs text-gray-400 hover:bg-red-50 hover:text-red-600"

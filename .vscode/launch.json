@@ -28,6 +28,17 @@
       "console": "integratedTerminal"
     },
     {
+      "name": "AI Assistant: debug",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/ai-assistant",
+      "runtimeExecutable": "${workspaceFolder}/.vscode/run-npm.sh",
+      "runtimeArgs": ["run", "dev"],
+      "env": { "NODE_OPTIONS": "--inspect" },
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**"],
+      "console": "integratedTerminal"
+    },
+    {
       "name": "Jest: debug backend tests",
       "type": "node",
       "request": "launch",
@@ -52,6 +63,14 @@
     {
       "name": "Full Stack: frontend + backend",
       "configurations": ["Next.js: debug frontend", "NestJS: debug backend"]
+    },
+    {
+      "name": "Full Stack: frontend + backend + AI",
+      "configurations": [
+        "Next.js: debug frontend",
+        "NestJS: debug backend",
+        "AI Assistant: debug"
+      ]
     }
   ]
 }

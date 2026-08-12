@@ -88,6 +88,16 @@ function isAssistantProposal(value: unknown): value is AssistantProposal {
   if (v['type'] === 'delete_project' || v['type'] === 'navigate_to_project') {
     return typeof v['projectId'] === 'string';
   }
+  if (v['type'] === 'move_tasks_to_project') {
+    const sourceOk = typeof v['sourceProjectId'] === 'string';
+    const targetId =
+      typeof v['targetProjectId'] === 'string' ? v['targetProjectId'] : '';
+    const targetNameOk = typeof v['targetProjectName'] === 'string';
+    const targetOk = Boolean(targetId) || targetNameOk;
+    if (!sourceOk || !targetOk) return false;
+    if (targetId && v['sourceProjectId'] === targetId) return false;
+    return true;
+  }
   return false;
 }
 

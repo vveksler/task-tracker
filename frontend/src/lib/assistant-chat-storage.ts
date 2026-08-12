@@ -89,6 +89,28 @@ function sanitizeMessage(raw: unknown): StoredChatMessage | null {
   return message;
 }
 
+function ensureUniqueMessageIds(
+  messages: StoredChatMessage[],
+): StoredChatMessage[] {
+  const seen = new Set<string>();
+  const out: StoredChatMessage[] = [];
+  for (const m of messages) {
+    let id = m.id;
+    // Legacy sequential ids (`user-1`) collide after reload; remint any
+    // duplicate so React keys stay unique without dropping turns.
+    if (seen.has(id) || /^(user|assistant)-\d+$/.test(id)) {
+      const uuid =
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      id = `${m.role}-${uuid}`;
+    }
+    seen.add(id);
+    out.push(id === m.id ? m : { ...m, id });
+  }
+  return out;
+}
+
 export function loadAssistantChat(
   userId: string,
   workspaceId: string,
@@ -101,10 +123,20 @@ export function loadAssistantChat(
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
-    return parsed
-      .map(sanitizeMessage)
-      .filter((m): m is StoredChatMessage => m !== null)
-      .slice(-MAX_MESSAGES);
+    const messages = ensureUniqueMessageIds(
+      parsed
+        .map(sanitizeMessage)
+        .filter((m): m is StoredChatMessage => m !== null)
+        .slice(-MAX_MESSAGES),
+    );
+    // Rewrite storage so the next load does not keep colliding legacy ids.
+    if (messages.length > 0) {
+      window.localStorage.setItem(
+        assistantChatStorageKey(userId, workspaceId),
+        JSON.stringify(messages),
+      );
+    }
+    return messages;
   } catch {
     return [];
   }

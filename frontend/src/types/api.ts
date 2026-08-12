@@ -94,7 +94,8 @@ export interface BulkUpdateTasksPatch {
   status?: TaskStatus;
   title?: string;
   description?: string;
-  assigneeId?: string;
+  /** null clears assignee on all matched tasks */
+  assigneeId?: string | null;
 }
 
 export type AssistantProposal =
@@ -152,6 +153,17 @@ export type AssistantProposal =
       type: 'navigate_to_project';
       summary: string;
       projectId: string;
+    }
+  | {
+      type: 'move_tasks_to_project';
+      summary: string;
+      sourceProjectId: string;
+      /** Real UUID when known; omit until create_project Apply binds it. */
+      targetProjectId?: string;
+      /** Used with create_project in the same batch (name → id after Apply). */
+      targetProjectName?: string;
+      /** When set, only tasks with these statuses are moved. */
+      statusIn?: TaskStatus[];
     };
 
 export type AssistantSseEvent =

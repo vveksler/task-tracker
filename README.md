@@ -30,7 +30,7 @@ vulnerability caught during review.
 │                             │ internal HTTP         ▼               │
 │                             │              ┌─────────────────────┐  │
 │                             └─────────────▶│  AI Assistant       │  │
-│                                            │  FastAPI (Python)   │  │
+│                                            │  Node/TS + LangChain│  │
 │                                            │  RAG + Claude       │  │
 │                                            └─────────────────────┘  │
 │  ┌────────────────────────────────────┐ ┌─────────────────────────┐ │
@@ -53,7 +53,7 @@ vulnerability caught during review.
 | State         | Zustand                                            | Lightweight, works great with optimistic updates   |
 | Drag & Drop   | @dnd-kit                                           | Built for reorder + cross-container moves          |
 | Charts        | Recharts + D3                                      | Standard charts + hand-rolled activity heatmap     |
-| AI Assistant  | FastAPI + OpenAI embeddings + Claude + pgvector    | Workspace-scoped RAG; Nest proxies; suggest+confirm |
+| AI Assistant  | Hono + LangChain.js + OpenAI embeddings + Claude + pgvector | Workspace-scoped RAG; Nest proxies; suggest+confirm |
 | Containers    | Docker (multi-stage)                               | Small production images (~150 MB)                  |
 | Orchestration | Kubernetes (Helm chart)                            | StatefulSet, Ingress, HPA, init containers         |
 | CI            | GitHub Actions                                     | Lint + type-check + test + Docker build on push    |
@@ -83,17 +83,16 @@ docker compose up -d postgres
 # Backend
 cd backend
 cp .env.example .env
-# Set AI_ASSISTANT_URL=http://localhost:8000 when running the Python service
+# Set AI_ASSISTANT_URL=http://localhost:8000 when running the AI service
 npm install
 npx prisma migrate dev
 npm run start:dev     # http://localhost:3001
 
-# AI Assistant (separate terminal; Python 3.12 recommended)
+# AI Assistant (separate terminal; Node 22+)
 cd ai-assistant
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
 cp .env.example .env   # OPENAI_API_KEY, ANTHROPIC_API_KEY, DATABASE_URL
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+npm install
+npm run dev            # http://localhost:8000
 
 # Frontend (separate terminal)
 cd frontend
@@ -185,7 +184,7 @@ later attach a subdomain to the frontend).
 Also add the production callback URI in [Google Cloud Console](https://console.cloud.google.com/)
 Authorized redirect URIs.
 
-**AI Assistant service** (Python FastAPI, optional):
+**AI Assistant service** (TypeScript + LangChain.js, optional):
 
 New Railway service from this repo:
 
@@ -196,7 +195,7 @@ New Railway service from this repo:
 
 | Variable | Example / notes |
 | --- | --- |
-| `DATABASE_URL` | Same Postgres as backend (asyncpg; `?schema=public` optional) |
+| `DATABASE_URL` | Same Postgres as backend (node-postgres; `?schema=public` optional) |
 | `OPENAI_API_KEY` | Embeddings (`text-embedding-3-small`) |
 | `ANTHROPIC_API_KEY` | Claude answer + proposal extraction |
 | `PORT` | Set by Railway automatically; image defaults to `8000` |
@@ -238,14 +237,14 @@ cd backend && npm test
 cd frontend && npm test
 
 # AI Assistant unit tests
-cd ai-assistant && .venv/bin/python -m pytest
+cd ai-assistant && npm test
 ```
 
 ## AI Assistant (RAG chat)
 
 Workspace-scoped assistant: retrieve relevant tasks (pgvector), answer with Claude,
-and propose mutations that the user must **Apply** (suggest + confirm). The Python
-service never writes to the DB; Nest executes confirmed actions with normal auth/RBAC.
+and propose mutations that the user must **Apply** (suggest + confirm). The AI
+service never writes task mutations to the DB; Nest executes confirmed actions with normal auth/RBAC.
 
 ### What it can do
 
@@ -284,7 +283,7 @@ npx ts-node scripts/seed-rag-demo.ts
 
 ### Security notes
 
-- Nest verifies workspace membership before calling Python
+- Nest verifies workspace membership before calling the AI service
 - Retrieval / catalog SQL always filter by `workspaceId`
 - Empty bulk filters rejected (no “update entire workspace” by accident)
 - On a project board, bulk “all tasks” is forced to that `projectId`
@@ -296,7 +295,7 @@ npx ts-node scripts/seed-rag-demo.ts
 | Service | Variable | Notes |
 | --- | --- | --- |
 | Backend | `AI_ASSISTANT_URL` | e.g. `http://localhost:8000` |
-| AI Assistant | `DATABASE_URL` | Same Postgres (asyncpg) |
+| AI Assistant | `DATABASE_URL` | Same Postgres (node-postgres) |
 | AI Assistant | `OPENAI_API_KEY` | Embeddings |
 | AI Assistant | `ANTHROPIC_API_KEY` | Chat + proposal extraction |
 
@@ -310,9 +309,8 @@ task-tracker/
 │   ├── Chart.yaml
 │   ├── values.yaml
 │   └── templates/               # 14 K8s manifests
-├── ai-assistant/                # FastAPI RAG microservice (Dockerfile + railway.json)
-│   ├── app/                     # retrieval, generation, workspace_context
-│   └── tests/
+├── ai-assistant/                # Hono + LangChain.js RAG microservice (Dockerfile + railway.json)
+│   └── src/                     # retrieval, generation, workspace-context
 ├── backend/                     # NestJS API
 │   ├── prisma/schema.prisma     # Data model source of truth (+ TaskEmbedding)
 │   ├── scripts/                 # enable-ai-assistant, seed-rag-demo
