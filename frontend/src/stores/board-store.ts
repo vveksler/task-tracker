@@ -77,11 +77,23 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       const tasks = await apiFetch<Task[]>(
         `/workspaces/${workspaceId}/tasks?projectId=${projectId}`,
       );
-      set({ tasks, isLoading: false, boardProjectId: projectId });
+      set((state) => {
+        // Socket board:sync already hydrated this project — don't clobber
+        // live WS events that may have arrived while REST was in flight.
+        if (state.boardProjectId === projectId && !state.isLoading) {
+          return state;
+        }
+        return { tasks, isLoading: false, boardProjectId: projectId };
+      });
     } catch (err) {
-      set({
-        isLoading: false,
-        error: err instanceof ApiError ? err.message : 'Failed to load tasks',
+      set((state) => {
+        if (state.boardProjectId === projectId && !state.isLoading) {
+          return state;
+        }
+        return {
+          isLoading: false,
+          error: err instanceof ApiError ? err.message : 'Failed to load tasks',
+        };
       });
     }
   },

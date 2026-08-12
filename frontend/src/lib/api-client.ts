@@ -7,6 +7,9 @@ const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001';
 // Access token lives in memory — never in localStorage/sessionStorage
 let accessToken: string | null = null;
 
+/** Single-flight refresh so AuthProvider boot + apiFetch don't double-hit. */
+let refreshInFlight: Promise<AuthResponse | null> | null = null;
+
 export function getAccessToken(): string | null {
   return accessToken;
 }
@@ -34,40 +37,62 @@ export class ApiError extends Error {
 }
 
 /**
- * Silent token refresh via the BFF /api/auth/refresh route.
- * The Next.js Route Handler reads the httpOnly cookie on its own domain,
- * exchanges it with the backend, and returns a fresh access token.
+ * Read JWT `exp` without verifying the signature (client-side gate only).
+ * Refresh ~30s before expiry to avoid the 401 → refresh → retry round-trip.
  */
-async function tryRefresh(): Promise<boolean> {
+export function isAccessTokenFresh(
+  token: string,
+  skewMs = 30_000,
+): boolean {
   try {
-    const res = await fetch('/api/auth/refresh', { method: 'POST' });
-
-    if (!res.ok) return false;
-
-    const data = (await res.json()) as AuthResponse;
-    accessToken = data.accessToken;
-    return true;
+    const payloadPart = token.split('.')[1];
+    if (!payloadPart) return false;
+    const padded = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
+    const padLen = (4 - (padded.length % 4)) % 4;
+    const json = atob(padded + '='.repeat(padLen));
+    const payload = JSON.parse(json) as { exp?: unknown };
+    if (typeof payload.exp !== 'number') return false;
+    return payload.exp * 1000 > Date.now() + skewMs;
   } catch {
     return false;
   }
 }
 
-/**
- * Typed fetch wrapper that:
- * 1. Attaches the Bearer token
- * 2. On 401, attempts a silent token refresh via BFF and retries once
- * 3. Throws ApiError with status for non-2xx responses
- */
-export async function apiFetch<T>(
-  path: string,
-  init?: RequestInit,
-): Promise<T> {
-  const headers = new Headers(init?.headers);
+async function refreshSession(): Promise<AuthResponse | null> {
+  if (refreshInFlight) return refreshInFlight;
 
+  refreshInFlight = (async () => {
+    try {
+      const res = await fetch('/api/auth/refresh', { method: 'POST' });
+      if (!res.ok) return null;
+      const data = (await res.json()) as AuthResponse;
+      accessToken = data.accessToken;
+      return data;
+    } catch {
+      return null;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
+}
+
+/**
+ * Ensure memory has a non-expired access token (refresh via BFF if needed).
+ * Returns false when the refresh cookie is missing/invalid.
+ */
+async function ensureAccessToken(): Promise<boolean> {
+  if (accessToken && isAccessTokenFresh(accessToken)) return true;
+  const data = await refreshSession();
+  return data !== null;
+}
+
+function buildAuthHeaders(init?: RequestInit): Headers {
+  const headers = new Headers(init?.headers);
   if (accessToken) {
     headers.set('Authorization', `Bearer ${accessToken}`);
   }
-
   if (
     init?.body &&
     typeof init.body === 'string' &&
@@ -75,13 +100,29 @@ export async function apiFetch<T>(
   ) {
     headers.set('Content-Type', 'application/json');
   }
+  return headers;
+}
 
+/**
+ * Typed fetch wrapper that:
+ * 1. Refreshes the access token proactively when missing/expired
+ * 2. Attaches the Bearer token
+ * 3. On 401, refreshes once more and retries
+ * 4. Throws ApiError with status for non-2xx responses
+ */
+export async function apiFetch<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
+  await ensureAccessToken();
+
+  let headers = buildAuthHeaders(init);
   let res = await fetch(`${API_URL}${path}`, { ...init, headers });
 
-  if (res.status === 401 && accessToken) {
-    const refreshed = await tryRefresh();
+  if (res.status === 401) {
+    const refreshed = await refreshSession();
     if (refreshed) {
-      headers.set('Authorization', `Bearer ${accessToken}`);
+      headers = buildAuthHeaders(init);
       res = await fetch(`${API_URL}${path}`, { ...init, headers });
     } else {
       accessToken = null;
@@ -110,26 +151,15 @@ export async function apiFetchStream(
   path: string,
   init?: RequestInit,
 ): Promise<Response> {
-  const headers = new Headers(init?.headers);
+  await ensureAccessToken();
 
-  if (accessToken) {
-    headers.set('Authorization', `Bearer ${accessToken}`);
-  }
-
-  if (
-    init?.body &&
-    typeof init.body === 'string' &&
-    !headers.has('Content-Type')
-  ) {
-    headers.set('Content-Type', 'application/json');
-  }
-
+  let headers = buildAuthHeaders(init);
   let res = await fetch(`${API_URL}${path}`, { ...init, headers });
 
-  if (res.status === 401 && accessToken) {
-    const refreshed = await tryRefresh();
+  if (res.status === 401) {
+    const refreshed = await refreshSession();
     if (refreshed) {
-      headers.set('Authorization', `Bearer ${accessToken}`);
+      headers = buildAuthHeaders(init);
       res = await fetch(`${API_URL}${path}`, { ...init, headers });
     } else {
       accessToken = null;
@@ -207,15 +237,5 @@ export async function apiLogout(): Promise<void> {
 }
 
 export async function apiRefreshToken(): Promise<AuthResponse | null> {
-  try {
-    const res = await fetch('/api/auth/refresh', { method: 'POST' });
-
-    if (!res.ok) return null;
-
-    const data = (await res.json()) as AuthResponse;
-    accessToken = data.accessToken;
-    return data;
-  } catch {
-    return null;
-  }
+  return refreshSession();
 }

@@ -13,11 +13,23 @@ import type { AssistantProposal } from '@/types/api';
 
 type AppliedListener = (proposal: AssistantProposal) => void;
 
+export type BoardScope = {
+  projectId: string;
+  projectName: string | null;
+};
+
 interface AssistantContextValue {
   isOpen: boolean;
   open: () => void;
   close: () => void;
   toggle: () => void;
+  /**
+   * Project board the user is currently viewing (set by the board page).
+   * Prefer this over route params — the slide-over lives in the workspace
+   * layout and can miss child-segment param updates.
+   */
+  boardScope: BoardScope | null;
+  setBoardScope: (scope: BoardScope | null) => void;
   /** Subscribe to successful Apply; returns unsubscribe. */
   subscribeApplied: (cb: AppliedListener) => () => void;
   notifyApplied: (proposal: AssistantProposal) => void;
@@ -45,11 +57,16 @@ export const AssistantProvider: React.FC<AssistantProviderProps> = ({
   children,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [boardScope, setBoardScopeState] = useState<BoardScope | null>(null);
   const listenersRef = useRef(new Set<AppliedListener>());
 
   const open = useCallback(() => setIsOpen(true), []);
   const close = useCallback(() => setIsOpen(false), []);
   const toggle = useCallback(() => setIsOpen((v) => !v), []);
+
+  const setBoardScope = useCallback((scope: BoardScope | null) => {
+    setBoardScopeState(scope);
+  }, []);
 
   const subscribeApplied = useCallback((cb: AppliedListener) => {
     listenersRef.current.add(cb);
@@ -70,10 +87,21 @@ export const AssistantProvider: React.FC<AssistantProviderProps> = ({
       open,
       close,
       toggle,
+      boardScope,
+      setBoardScope,
       subscribeApplied,
       notifyApplied,
     }),
-    [isOpen, open, close, toggle, subscribeApplied, notifyApplied],
+    [
+      isOpen,
+      open,
+      close,
+      toggle,
+      boardScope,
+      setBoardScope,
+      subscribeApplied,
+      notifyApplied,
+    ],
   );
 
   return (

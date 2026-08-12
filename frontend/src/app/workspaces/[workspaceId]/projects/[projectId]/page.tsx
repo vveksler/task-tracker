@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
+import { useOptionalAssistant } from '@/lib/assistant-context';
 import { KanbanBoard } from '@/components/board/kanban-board';
 import type { Project } from '@/types/api';
 
@@ -14,8 +15,23 @@ const BoardPage = () => {
   }>();
 
   const [project, setProject] = useState<Project | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const assistant = useOptionalAssistant();
+  const setBoardScope = assistant?.setBoardScope;
 
+  // Keep the slide-over assistant scoped to this board (layout-mounted chat
+  // may not see child route params reliably).
+  useEffect(() => {
+    if (!setBoardScope) return;
+    setBoardScope({
+      projectId,
+      projectName: project?.name ?? null,
+    });
+    return () => {
+      setBoardScope(null);
+    };
+  }, [setBoardScope, projectId, project?.name]);
+
+  // Title fetch runs in parallel with the board — do not block Kanban mount.
   useEffect(() => {
     let cancelled = false;
 
@@ -25,20 +41,14 @@ const BoardPage = () => {
       .then((data) => {
         if (!cancelled) setProject(data);
       })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
+      .catch(() => {
+        // Board still works; title stays empty on failure.
       });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [workspaceId, projectId]);
-
-  if (isLoading) {
-    return (
-      <div className="flex justify-center py-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-500 border-t-transparent" />
-      </div>
-    );
-  }
 
   return (
     <div className="board-page">
@@ -50,7 +60,9 @@ const BoardPage = () => {
           &larr; Projects
         </Link>
         <h1 className="mt-2 break-words text-xl font-bold text-gray-900 sm:text-2xl">
-          {project?.name ?? ''}
+          {project?.name ?? (
+            <span className="inline-block h-7 w-40 animate-pulse rounded bg-gray-200 align-middle" />
+          )}
         </h1>
       </div>
 

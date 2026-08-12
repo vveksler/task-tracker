@@ -20,7 +20,9 @@ function filterHasContentScope(filt: Record<string, unknown>): boolean {
 
 /**
  * Deterministic scope fixes (language-agnostic safety + intent flags):
- * - On a project board: inject current projectId into bulk filters.
+ * - On a project board: force bulk filters / move source onto currentProjectId
+ *   unless the user explicitly named another project (projectName).
+ *   Stale UUIDs from chat history after switching boards are overwritten.
  * - wantsAllTasksInScope && !statusLimited: drop statusIn.
  * - Workspace with no project: drop status-only / empty-scope bulk
  *   (safety net — does not depend on question language).
@@ -50,9 +52,15 @@ export function applyScopeGuards(
           ? proposal['targetProjectName'].trim()
           : '';
       let nextSource = source;
-      if ((!nextSource || (target && nextSource === target)) && currentProjectId) {
-        // "this project" → current board as source when LLM omitted it.
-        nextSource = currentProjectId;
+      if (currentProjectId) {
+        const targetIsCurrent = Boolean(target && target === currentProjectId);
+        // Moving INTO the open board from elsewhere — keep a different source.
+        // Otherwise treat source as "this board" (overwrite stale history ids).
+        if (!targetIsCurrent) {
+          nextSource = currentProjectId;
+        } else if (!nextSource) {
+          nextSource = currentProjectId;
+        }
       }
       if (!nextSource) {
         continue;
@@ -83,17 +91,15 @@ export function applyScopeGuards(
     const filt = {
       ...((proposal['filter'] as Record<string, unknown>) || {}),
     };
-    const namedOtherProject =
-      filterHasProject(filt) &&
-      currentProjectId &&
-      filt['projectId'] &&
-      filt['projectId'] !== currentProjectId;
+    const explicitOtherProjectName =
+      typeof filt['projectName'] === 'string' &&
+      Boolean((filt['projectName'] as string).trim());
 
-    if (currentProjectId && !namedOtherProject) {
-      if (!filterHasProject(filt) || !filt['projectId']) {
-        filt['projectId'] = currentProjectId;
-        delete filt['projectName'];
-      }
+    // On a board, "current/this project" always means the open board — do not
+    // trust a different projectId left over from earlier turns in the thread.
+    if (currentProjectId && !explicitOtherProjectName) {
+      filt['projectId'] = currentProjectId;
+      delete filt['projectName'];
     }
 
     if (wantsAll && !statusLimited) {

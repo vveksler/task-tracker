@@ -59,6 +59,45 @@ describe('BoardStore', () => {
     });
   });
 
+  describe('loadTasks', () => {
+    it('should load tasks via REST and clear loading', async () => {
+      const tasks = [makeTask({ id: 'a' })];
+      mockApiFetch.mockResolvedValueOnce(tasks);
+
+      await useBoardStore.getState().loadTasks('ws-1', 'proj-1');
+
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        '/workspaces/ws-1/tasks?projectId=proj-1',
+      );
+      expect(useBoardStore.getState().tasks).toEqual(tasks);
+      expect(useBoardStore.getState().isLoading).toBe(false);
+      expect(useBoardStore.getState().boardProjectId).toBe('proj-1');
+    });
+
+    it('should not clobber state if board:sync already hydrated the project', async () => {
+      let resolveFetch!: (value: Task[]) => void;
+      mockApiFetch.mockReturnValueOnce(
+        new Promise<Task[]>((resolve) => {
+          resolveFetch = resolve;
+        }),
+      );
+
+      const loadPromise = useBoardStore.getState().loadTasks('ws-1', 'proj-1');
+
+      // Simulate faster socket sync while REST is in flight.
+      useBoardStore
+        .getState()
+        .syncTasks([makeTask({ id: 'from-ws' })], 'proj-1');
+
+      resolveFetch([makeTask({ id: 'from-rest' })]);
+      await loadPromise;
+
+      expect(useBoardStore.getState().tasks.map((t) => t.id)).toEqual([
+        'from-ws',
+      ]);
+    });
+  });
+
   describe('reset', () => {
     it('should clear tasks, mark loading, and clear boardProjectId', () => {
       useBoardStore.setState({

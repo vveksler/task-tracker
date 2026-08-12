@@ -56,6 +56,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     boardProjectId,
     error,
     reset,
+    loadTasks,
     syncTasks,
     addTask,
     updateTask,
@@ -100,8 +101,13 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     };
   }, [projectId, reset]);
 
-  // Socket.io connection — board:sync on join provides the initial task list,
-  // so no separate REST fetch is needed.
+  // REST first paint — usually faster than waiting for Socket.io + board:sync
+  // through minikube tunnel/ingress. WS still reconciles when it connects.
+  useEffect(() => {
+    void loadTasks(workspaceId, projectId);
+  }, [workspaceId, projectId, loadTasks]);
+
+  // Socket.io for live updates; board:sync remains the post-join reconcile.
   useEffect(() => {
     const socket = connectSocket();
     const activeProjectId = projectId;

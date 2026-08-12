@@ -440,6 +440,86 @@ describe('applyScopeGuards', () => {
     });
   });
 
+  it('overwrites stale projectId from chat history with the open board', () => {
+    const proposals = [
+      {
+        type: 'bulk_delete_tasks',
+        summary: 'Delete all tasks in the current project',
+        filter: { projectId: 'proj-old-from-history' },
+      },
+    ];
+    const guarded = applyScopeGuards(
+      proposals,
+      {
+        isConfirmation: false,
+        wantsAllTasksInScope: true,
+        statusLimited: false,
+      },
+      'proj-open-now',
+    );
+    expect(guarded).toEqual([
+      {
+        type: 'bulk_delete_tasks',
+        summary: 'Delete all tasks in the current project',
+        filter: { projectId: 'proj-open-now' },
+      },
+    ]);
+  });
+
+  it('keeps an explicitly named other project while on a board', () => {
+    const proposals = [
+      {
+        type: 'bulk_delete_tasks',
+        summary: 'Delete Auth tasks',
+        filter: {
+          projectId: 'proj-auth',
+          projectName: 'Auth & Security',
+        },
+      },
+    ];
+    const guarded = applyScopeGuards(
+      proposals,
+      {
+        isConfirmation: false,
+        wantsAllTasksInScope: true,
+        statusLimited: false,
+      },
+      'proj-infra',
+    );
+    expect(guarded[0]!['filter']).toEqual({
+      projectId: 'proj-auth',
+      projectName: 'Auth & Security',
+    });
+  });
+
+  it('overwrites stale move source with the open board', () => {
+    const proposals = [
+      {
+        type: 'move_tasks_to_project',
+        summary: 'Move to Auth',
+        sourceProjectId: 'proj-old',
+        targetProjectId: 'p-auth',
+      },
+    ];
+    const guarded = applyScopeGuards(
+      proposals,
+      {
+        isConfirmation: false,
+        wantsAllTasksInScope: true,
+        statusLimited: false,
+      },
+      'p-infra',
+    );
+    expect(guarded).toEqual([
+      {
+        type: 'move_tasks_to_project',
+        summary: 'Move to Auth',
+        sourceProjectId: 'p-infra',
+        targetProjectId: 'p-auth',
+      },
+    ]);
+  });
+
   it('fills move source from current project when omitted', () => {
     const proposals = [
       {

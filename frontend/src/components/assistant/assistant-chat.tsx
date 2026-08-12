@@ -141,16 +141,19 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
   const router = useRouter();
   const pathname = usePathname();
   const params = useParams<{ projectId?: string }>();
-  // Prefer route param; fall back to pathname so the slide-over chat still
-  // scopes to the board even if params are incomplete.
-  const currentProjectId = (() => {
+  const assistantCtx = useOptionalAssistant();
+  // Prefer board scope from the open project page (reliable across layout
+  // slide-over). Fall back to route param / pathname for the full-page chat.
+  const routeProjectId = (() => {
     if (typeof params?.projectId === 'string' && params.projectId) {
       return params.projectId;
     }
     const match = pathname?.match(/\/projects\/([^/?#]+)/);
     return match?.[1];
   })();
-  const assistantCtx = useOptionalAssistant();
+  const currentProjectId =
+    assistantCtx?.boardScope?.projectId ?? routeProjectId;
+  const currentProjectName = assistantCtx?.boardScope?.projectName ?? null;
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [hydrated, setHydrated] = useState(false);
@@ -774,6 +777,13 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
             <p className="text-sm text-red-600" role="alert">
               {error}
             </p>
+          ) : currentProjectId ? (
+            <span className="assistant-composer-hint text-xs text-gray-400">
+              Scoped to{' '}
+              <span className="font-medium text-gray-600">
+                {currentProjectName ?? 'current board'}
+              </span>
+            </span>
           ) : (
             <span className="assistant-composer-hint text-xs text-gray-400">
               Enter to send · Shift+Enter for newline

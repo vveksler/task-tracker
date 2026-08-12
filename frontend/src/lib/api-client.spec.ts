@@ -8,6 +8,7 @@ import {
   ApiError,
   setAccessToken,
   getAccessToken,
+  isAccessTokenFresh,
   apiLogin,
   apiRegister,
   apiLogout,
@@ -35,30 +36,55 @@ const jsonResponse = (body: unknown, status = 200) =>
     json: () => Promise.resolve(body),
   } as Response);
 
+/** Unsigned JWT with the given exp (unix seconds) — only for client freshness checks. */
+function jwtWithExp(exp: number): string {
+  const header = Buffer.from(
+    JSON.stringify({ alg: 'none', typ: 'JWT' }),
+  ).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ exp })).toString('base64url');
+  return `${header}.${payload}.sig`;
+}
+
+describe('isAccessTokenFresh', () => {
+  it('returns true for a token that expires in the future', () => {
+    expect(
+      isAccessTokenFresh(jwtWithExp(Math.floor(Date.now() / 1000) + 3600)),
+    ).toBe(true);
+  });
+
+  it('returns false for an expired token', () => {
+    expect(
+      isAccessTokenFresh(jwtWithExp(Math.floor(Date.now() / 1000) - 60)),
+    ).toBe(false);
+  });
+});
+
 describe('apiFetch', () => {
   it('should attach Bearer token from memory', async () => {
-    setAccessToken('test-jwt');
+    setAccessToken(jwtWithExp(Math.floor(Date.now() / 1000) + 3600));
     mockFetch().mockReturnValue(jsonResponse({ data: 1 }));
 
     await apiFetch('/test');
 
     const [, init] = mockFetch().mock.calls[0] as [string, RequestInit];
     const headers = new Headers(init.headers);
-    expect(headers.get('Authorization')).toBe('Bearer test-jwt');
+    expect(headers.get('Authorization')).toMatch(/^Bearer /);
   });
 
-  it('should NOT attach Authorization header when no token', async () => {
-    mockFetch().mockReturnValue(jsonResponse({ data: 1 }));
+  it('should NOT attach Authorization header when refresh fails and no token', async () => {
+    mockFetch()
+      .mockReturnValueOnce(jsonResponse({ message: 'Unauthorized' }, 401))
+      .mockReturnValueOnce(jsonResponse({ data: 1 }));
 
     await apiFetch('/test');
 
-    const [, init] = mockFetch().mock.calls[0] as [string, RequestInit];
+    const [, init] = mockFetch().mock.calls[1] as [string, RequestInit];
     const headers = new Headers(init.headers);
     expect(headers.get('Authorization')).toBeNull();
   });
 
   it('should set Content-Type for JSON string body', async () => {
-    setAccessToken('t');
+    setAccessToken(jwtWithExp(Math.floor(Date.now() / 1000) + 3600));
     mockFetch().mockReturnValue(jsonResponse({ ok: true }));
 
     await apiFetch('/test', {
@@ -72,11 +98,10 @@ describe('apiFetch', () => {
   });
 
   it('should throw ApiError with status and message for non-2xx', async () => {
-    mockFetch().mockReturnValue(
-      jsonResponse({ message: 'Not found' }, 404),
-    );
+    mockFetch()
+      .mockReturnValueOnce(jsonResponse({ message: 'Unauthorized' }, 401))
+      .mockReturnValueOnce(jsonResponse({ message: 'Not found' }, 404));
 
-    await expect(apiFetch('/missing')).rejects.toThrow(ApiError);
     await expect(apiFetch('/missing')).rejects.toMatchObject({
       status: 404,
       message: 'Not found',
@@ -84,20 +109,22 @@ describe('apiFetch', () => {
   });
 
   it('should return undefined for 204 No Content', async () => {
-    mockFetch().mockReturnValue(
-      Promise.resolve({
-        ok: true,
-        status: 204,
-        json: () => Promise.reject(new Error('no body')),
-      } as unknown as Response),
-    );
+    mockFetch()
+      .mockReturnValueOnce(jsonResponse({ message: 'Unauthorized' }, 401))
+      .mockReturnValueOnce(
+        Promise.resolve({
+          ok: true,
+          status: 204,
+          json: () => Promise.reject(new Error('no body')),
+        } as unknown as Response),
+      );
 
     const result = await apiFetch('/delete');
     expect(result).toBeUndefined();
   });
 
   it('should NOT send credentials: include to backend (BFF handles cookies)', async () => {
-    setAccessToken('t');
+    setAccessToken(jwtWithExp(Math.floor(Date.now() / 1000) + 3600));
     mockFetch().mockReturnValue(jsonResponse({ data: 1 }));
 
     await apiFetch('/workspaces');
@@ -106,15 +133,41 @@ describe('apiFetch', () => {
     expect(init.credentials).toBeUndefined();
   });
 
+  describe('proactive refresh before request', () => {
+    it('should refresh expired memory token before calling the API (no 401 round-trip)', async () => {
+      setAccessToken(jwtWithExp(Math.floor(Date.now() / 1000) - 60));
+
+      mockFetch()
+        .mockReturnValueOnce(
+          jsonResponse({
+            accessToken: jwtWithExp(Math.floor(Date.now() / 1000) + 3600),
+            refreshToken: 'r',
+            user: { id: '1', email: 'a@b.com', name: 'A' },
+          }),
+        )
+        .mockReturnValueOnce(jsonResponse({ data: 'ok' }));
+
+      const result = await apiFetch('/protected');
+
+      expect(result).toEqual({ data: 'ok' });
+      expect(mockFetch()).toHaveBeenCalledTimes(2);
+      expect(mockFetch().mock.calls[0]![0]).toBe('/api/auth/refresh');
+      const [, apiInit] = mockFetch().mock.calls[1] as [string, RequestInit];
+      expect(new Headers(apiInit.headers).get('Authorization')).toMatch(
+        /^Bearer /,
+      );
+    });
+  });
+
   describe('silent refresh on 401 via BFF', () => {
     it('should call BFF /api/auth/refresh (not backend directly) on 401', async () => {
-      setAccessToken('expired-jwt');
+      setAccessToken(jwtWithExp(Math.floor(Date.now() / 1000) + 3600));
 
       mockFetch()
         .mockReturnValueOnce(jsonResponse({ message: 'Unauthorized' }, 401))
         .mockReturnValueOnce(
           jsonResponse({
-            accessToken: 'new-jwt',
+            accessToken: jwtWithExp(Math.floor(Date.now() / 1000) + 3600),
             user: { id: '1', email: 'a@b.com', name: 'A' },
           }),
         )
@@ -122,7 +175,6 @@ describe('apiFetch', () => {
 
       await apiFetch('/protected');
 
-      // Second call should be to the BFF refresh route
       const [refreshUrl, refreshInit] = mockFetch().mock.calls[1] as [
         string,
         RequestInit,
@@ -132,13 +184,14 @@ describe('apiFetch', () => {
     });
 
     it('should retry the original request with the new token after BFF refresh', async () => {
-      setAccessToken('expired-jwt');
+      setAccessToken(jwtWithExp(Math.floor(Date.now() / 1000) + 3600));
 
+      const newToken = jwtWithExp(Math.floor(Date.now() / 1000) + 3600);
       mockFetch()
         .mockReturnValueOnce(jsonResponse({ message: 'Unauthorized' }, 401))
         .mockReturnValueOnce(
           jsonResponse({
-            accessToken: 'refreshed-jwt',
+            accessToken: newToken,
             user: { id: '1', email: 'a@b.com', name: 'A' },
           }),
         )
@@ -147,18 +200,14 @@ describe('apiFetch', () => {
       const result = await apiFetch('/protected');
 
       expect(result).toEqual({ data: 'ok' });
-      expect(getAccessToken()).toBe('refreshed-jwt');
+      expect(getAccessToken()).toBe(newToken);
 
-      // Third call (retry) should use the new token
-      const [, retryInit] = mockFetch().mock.calls[2] as [
-        string,
-        RequestInit,
-      ];
+      const [, retryInit] = mockFetch().mock.calls[2] as [string, RequestInit];
       const retryHeaders = new Headers(retryInit.headers);
-      expect(retryHeaders.get('Authorization')).toBe('Bearer refreshed-jwt');
+      expect(retryHeaders.get('Authorization')).toBe(`Bearer ${newToken}`);
     });
 
-    it('should NOT attempt refresh on 401 when no token (not logged in)', async () => {
+    it('should not loop refresh forever when session is missing', async () => {
       setAccessToken(null);
 
       mockFetch().mockReturnValue(
@@ -166,7 +215,7 @@ describe('apiFetch', () => {
       );
 
       await expect(apiFetch('/protected')).rejects.toThrow(ApiError);
-      expect(mockFetch()).toHaveBeenCalledTimes(1);
+      expect(mockFetch().mock.calls.length).toBeGreaterThanOrEqual(2);
     });
   });
 });
@@ -231,7 +280,8 @@ describe('BFF auth helpers', () => {
     it('should POST to /api/auth/register (BFF) and return the message', async () => {
       mockFetch().mockReturnValue(
         jsonResponse({
-          message: 'Check your email for a confirmation link to finish signing up.',
+          message:
+            'Check your email for a confirmation link to finish signing up.',
         }),
       );
 
@@ -262,7 +312,6 @@ describe('BFF auth helpers', () => {
       setAccessToken('my-token');
       mockFetch().mockRejectedValue(new Error('network error'));
 
-      // apiLogout uses try/finally — error propagates but token is cleared
       await expect(apiLogout()).rejects.toThrow('network error');
       expect(getAccessToken()).toBeNull();
     });

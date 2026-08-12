@@ -4,6 +4,7 @@
 
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useEffect } from 'react';
 import type { AssistantProposal } from '@/types/api';
 
 const mockApiFetch = jest.fn();
@@ -54,6 +55,25 @@ jest.mock('@/lib/assistant-sse', () => ({
 }));
 
 import { AssistantChat } from '@/components/assistant/assistant-chat';
+import {
+  AssistantProvider,
+  useAssistant,
+} from '@/lib/assistant-context';
+
+function BoardScopeSetter({
+  projectId,
+  projectName,
+}: {
+  projectId: string;
+  projectName: string;
+}) {
+  const { setBoardScope } = useAssistant();
+  useEffect(() => {
+    setBoardScope({ projectId, projectName });
+    return () => setBoardScope(null);
+  }, [setBoardScope, projectId, projectName]);
+  return null;
+}
 
 describe('AssistantChat proposals', () => {
   beforeEach(() => {
@@ -140,6 +160,43 @@ describe('AssistantChat proposals', () => {
           body: JSON.stringify({
             question: 'delete all tasks here',
             currentProjectId: 'proj-current',
+          }),
+        }),
+      );
+    });
+  });
+
+  it('prefers boardScope projectId over stale route params', async () => {
+    mockParams = { projectId: 'proj-stale-route' };
+    const user = userEvent.setup();
+    render(
+      <AssistantProvider>
+        <BoardScopeSetter
+          projectId="proj-open-board"
+          projectName="Infrastructure"
+        />
+        <AssistantChat workspaceId="ws-1" />
+      </AssistantProvider>,
+    );
+
+    expect(
+      await screen.findByText(/Scoped to/),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Infrastructure')).toBeInTheDocument();
+
+    await user.type(
+      screen.getByPlaceholderText(/ask about tasks/i),
+      'delete all tasks in the current project',
+    );
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => {
+      expect(mockApiFetchStream).toHaveBeenCalledWith(
+        '/workspaces/ws-1/assistant/ask',
+        expect.objectContaining({
+          body: JSON.stringify({
+            question: 'delete all tasks in the current project',
+            currentProjectId: 'proj-open-board',
           }),
         }),
       );

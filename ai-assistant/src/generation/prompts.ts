@@ -143,6 +143,8 @@ Rules:
   and other columns are skipped.
 - CRITICAL — when <current_project> is set and the user did not name another project,
   EVERY bulk_* filter MUST include that project's projectId. Never "across all projects".
+  Ignore project UUIDs mentioned only in conversation_history if they differ from
+  <current_project> — the open board is always the source of truth for "this/current".
 - CRITICAL — when <current_project> is absent and the user wants "all tasks" without a
   project name / keyword / assignee filter: return {"proposals":[]} so the UI text can ask
   which project (do not invent workspace-wide status-only bulk).
