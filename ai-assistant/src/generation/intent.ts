@@ -113,10 +113,7 @@ export async function classifyScopeIntent(args: {
   try {
     const model = createChatModel(120);
     const response = await model.invoke(
-      [
-        new SystemMessage(INTENT_SYSTEM_PROMPT),
-        new HumanMessage(userMessage),
-      ],
+      [new SystemMessage(INTENT_SYSTEM_PROMPT), new HumanMessage(userMessage)],
       { signal: args.signal },
     );
     const parsed = extractJsonObject(messageText(response.content));

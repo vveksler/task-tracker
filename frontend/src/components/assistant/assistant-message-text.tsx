@@ -34,12 +34,10 @@ export function AssistantMessageText({
 }: {
   text: string;
   placeholder?: string;
-}): React.ReactElement {
+}) {
   const trimmed = text.trimEnd();
   if (!trimmed) {
-    return (
-      <p className="text-sm text-gray-800">{placeholder ?? ''}</p>
-    );
+    return <p className="text-sm text-gray-800">{placeholder ?? ''}</p>;
   }
 
   const blocks = trimmed.split(/\n{2,}/);
@@ -69,7 +67,10 @@ export function AssistantMessageText({
     }
 
     nodes.push(
-      <p key={`p-${blockIdx}`} className="my-1.5 text-sm leading-relaxed text-gray-800">
+      <p
+        key={`p-${blockIdx}`}
+        className="my-1.5 text-sm leading-relaxed text-gray-800"
+      >
         {lines.map((line, i) => (
           <Fragment key={i}>
             {i > 0 && <br />}

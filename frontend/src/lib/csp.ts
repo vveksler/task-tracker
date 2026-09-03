@@ -72,9 +72,7 @@ function shouldUpgradeInsecureRequests(): boolean {
   const apiOrigin = originOf(api);
   const wsOrigin = originOf(ws);
 
-  return (
-    !!apiOrigin?.startsWith('https:') && !!wsOrigin?.startsWith('https:')
-  );
+  return !!apiOrigin?.startsWith('https:') && !!wsOrigin?.startsWith('https:');
 }
 
 /**
@@ -122,7 +120,10 @@ export function buildCspHeader(nonce: string): string {
     directives.push('upgrade-insecure-requests');
   }
 
-  return directives.join('; ').replace(/\s{2,}/g, ' ').trim();
+  return directives
+    .join('; ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 /** Cryptographically random nonce for one HTML response. */

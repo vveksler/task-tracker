@@ -30,10 +30,7 @@ export class WorkspacesController {
 
   @Post()
   @ApiOperation({ summary: 'Create a new workspace (creator becomes ADMIN)' })
-  create(
-    @Body() dto: CreateWorkspaceDto,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  create(@Body() dto: CreateWorkspaceDto, @CurrentUser() user: JwtPayload) {
     return this.workspacesService.create(dto, user.sub);
   }
 
@@ -81,10 +78,7 @@ export class WorkspacesController {
   @UseGuards(WorkspaceRolesGuard)
   @Roles(WorkspaceRole.ADMIN)
   @ApiOperation({ summary: 'Invite a member to workspace (ADMIN only)' })
-  addMember(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: AddMemberDto,
-  ) {
+  addMember(@Param('id', ParseUUIDPipe) id: string, @Body() dto: AddMemberDto) {
     return this.workspacesService.addMember(id, dto);
   }
 

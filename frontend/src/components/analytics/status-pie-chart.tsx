@@ -1,6 +1,13 @@
 'use client';
 
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
 import type { StatusBreakdown } from '@/types/api';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -21,7 +28,7 @@ interface StatusPieChartProps {
   data: StatusBreakdown[];
 }
 
-export const StatusPieChart: React.FC<StatusPieChartProps> = ({ data }) => {
+export function StatusPieChart({ data }: StatusPieChartProps) {
   const chartData = data.map((d) => ({
     name: STATUS_LABELS[d.status] ?? d.status,
     value: d.count,
@@ -29,7 +36,9 @@ export const StatusPieChart: React.FC<StatusPieChartProps> = ({ data }) => {
   }));
 
   if (chartData.length === 0) {
-    return <p className="py-8 text-center text-sm text-gray-400">No tasks yet</p>;
+    return (
+      <p className="py-8 text-center text-sm text-gray-400">No tasks yet</p>
+    );
   }
 
   return (
@@ -58,4 +67,4 @@ export const StatusPieChart: React.FC<StatusPieChartProps> = ({ data }) => {
       </PieChart>
     </ResponsiveContainer>
   );
-};
+}

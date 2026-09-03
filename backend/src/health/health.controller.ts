@@ -26,7 +26,9 @@ export class HealthController {
 
   @Get('ready')
   @HealthCheck()
-  @ApiOperation({ summary: 'Readiness — process can serve traffic (DB is reachable)' })
+  @ApiOperation({
+    summary: 'Readiness — process can serve traffic (DB is reachable)',
+  })
   ready() {
     return this.health.check([
       () => this.prismaHealth.pingCheck('database', this.prisma),

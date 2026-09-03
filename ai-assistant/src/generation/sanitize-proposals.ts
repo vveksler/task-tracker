@@ -276,8 +276,12 @@ export function sanitizeProposals(raw: unknown): Proposal[] {
  * and skips the recreate step. Rewrite those deletes into move_tasks_to_project
  * targeting the new project by name (UI binds UUID after create Apply).
  */
-export function repairCreatePlusDeleteAsMove(proposals: Proposal[]): Proposal[] {
-  const createProjects = proposals.filter((p) => p['type'] === 'create_project');
+export function repairCreatePlusDeleteAsMove(
+  proposals: Proposal[],
+): Proposal[] {
+  const createProjects = proposals.filter(
+    (p) => p['type'] === 'create_project',
+  );
   const hasMove = proposals.some((p) => p['type'] === 'move_tasks_to_project');
   if (createProjects.length !== 1 || hasMove) {
     return proposals;
@@ -320,7 +324,9 @@ export function repairCreatePlusDeleteAsMove(proposals: Proposal[]): Proposal[] 
   return converted ? out : proposals;
 }
 
-export function extractJsonObject(text: string): Record<string, unknown> | null {
+export function extractJsonObject(
+  text: string,
+): Record<string, unknown> | null {
   let cleaned = text.trim();
   const fence = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (fence?.[1]) {
@@ -328,7 +334,11 @@ export function extractJsonObject(text: string): Record<string, unknown> | null 
   }
   try {
     const parsed: unknown = JSON.parse(cleaned);
-    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      !Array.isArray(parsed)
+    ) {
       return parsed as Record<string, unknown>;
     }
   } catch {
@@ -340,7 +350,11 @@ export function extractJsonObject(text: string): Record<string, unknown> | null 
   if (start === -1 || end === -1 || end <= start) return null;
   try {
     const parsed: unknown = JSON.parse(cleaned.slice(start, end + 1));
-    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      !Array.isArray(parsed)
+    ) {
       return parsed as Record<string, unknown>;
     }
   } catch {

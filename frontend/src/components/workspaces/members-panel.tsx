@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type FormEvent } from 'react';
 import type { WorkspaceMember, WorkspaceRole } from '@/types/api';
 import { apiFetch } from '@/lib/api-client';
 import { useWorkspace } from '@/lib/workspace-context';
@@ -39,7 +39,7 @@ interface MembersPanelProps {
   workspaceId: string;
 }
 
-export const MembersPanel: React.FC<MembersPanelProps> = ({ workspaceId }) => {
+export function MembersPanel({ workspaceId }: MembersPanelProps) {
   const { workspace, isAdmin, refetch } = useWorkspace();
   const { user } = useAuth();
 
@@ -52,7 +52,7 @@ export const MembersPanel: React.FC<MembersPanelProps> = ({ workspaceId }) => {
   const members = workspace?.members ?? [];
 
   const handleInvite = useCallback(
-    async (e: React.FormEvent) => {
+    async (e: FormEvent) => {
       e.preventDefault();
       if (!email.trim()) return;
       setIsInviting(true);
@@ -66,9 +66,7 @@ export const MembersPanel: React.FC<MembersPanelProps> = ({ workspaceId }) => {
         setShowInvite(false);
         refetch();
       } catch (err) {
-        setError(
-          err instanceof Error ? err.message : 'Failed to add member',
-        );
+        setError(err instanceof Error ? err.message : 'Failed to add member');
       } finally {
         setIsInviting(false);
       }
@@ -78,17 +76,11 @@ export const MembersPanel: React.FC<MembersPanelProps> = ({ workspaceId }) => {
 
   const handleRemove = useCallback(
     async (member: WorkspaceMember) => {
-      if (
-        !confirm(
-          `Remove ${member.user.name} from this workspace?`,
-        )
-      )
-        return;
+      if (!confirm(`Remove ${member.user.name} from this workspace?`)) return;
       try {
-        await apiFetch(
-          `/workspaces/${workspaceId}/members/${member.userId}`,
-          { method: 'DELETE' },
-        );
+        await apiFetch(`/workspaces/${workspaceId}/members/${member.userId}`, {
+          method: 'DELETE',
+        });
         refetch();
       } catch (err) {
         alert(err instanceof Error ? err.message : 'Failed to remove member');
@@ -139,9 +131,7 @@ export const MembersPanel: React.FC<MembersPanelProps> = ({ workspaceId }) => {
               <option value="ADMIN">Admin</option>
             </select>
           </div>
-          {error && (
-            <p className="text-sm text-red-600">{error}</p>
-          )}
+          {error && <p className="text-sm text-red-600">{error}</p>}
           <Button type="submit" size="sm" isLoading={isInviting}>
             Add
           </Button>
@@ -208,4 +198,4 @@ export const MembersPanel: React.FC<MembersPanelProps> = ({ workspaceId }) => {
       </ul>
     </div>
   );
-};
+}

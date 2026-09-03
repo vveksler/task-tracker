@@ -7,6 +7,24 @@ on:
     branches: [master, main]
 
 jobs:
+  # ── Repo-wide Prettier: fail CI if files are not formatted ──
+  format:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+
+      - name: Check formatting
+        run: npm run format:check
+
   # ── Backend: lint, type-check, unit tests ──
   backend:
     name: Backend
@@ -52,7 +70,7 @@ jobs:
         run: npx prisma migrate deploy
 
       - name: Lint
-        run: npx eslint "src/**/*.ts" --max-warnings 0
+        run: npm run lint
 
       - name: Type-check
         run: npx tsc --noEmit
@@ -80,7 +98,7 @@ jobs:
       - run: npm ci
 
       - name: Lint
-        run: npx eslint .
+        run: npm run lint
 
       - name: Type-check
         run: npx tsc --noEmit
@@ -92,7 +110,7 @@ jobs:
   docker:
     name: Docker Build
     runs-on: ubuntu-latest
-    needs: [backend, frontend]
+    needs: [format, backend, frontend]
 
     steps:
       - uses: actions/checkout@v4

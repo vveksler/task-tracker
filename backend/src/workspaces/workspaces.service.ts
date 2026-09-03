@@ -157,7 +157,9 @@ export class WorkspacesService {
   ) {
     // Prevent removing yourself — use a different flow for "leave workspace"
     if (targetUserId === requestingUserId) {
-      throw new ForbiddenException('Cannot remove yourself — use leave instead');
+      throw new ForbiddenException(
+        'Cannot remove yourself — use leave instead',
+      );
     }
 
     const target = await this.prisma.workspaceMember.findUnique({

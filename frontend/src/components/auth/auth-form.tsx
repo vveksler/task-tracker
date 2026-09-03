@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
@@ -14,14 +14,12 @@ interface AuthFormProps {
 
 const GOOGLE_ERROR_MESSAGES: Record<string, string> = {
   google: 'Google sign-in failed. Please try again.',
-  google_not_configured:
-    'Google sign-in is not configured on this server.',
+  google_not_configured: 'Google sign-in is not configured on this server.',
 };
 
-const NEEDS_VERIFICATION =
-  /verify your email/i;
+const NEEDS_VERIFICATION = /verify your email/i;
 
-export const AuthForm: React.FC<AuthFormProps> = ({ mode }) => {
+export function AuthForm({ mode }: AuthFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login, register } = useAuth();
@@ -39,7 +37,9 @@ export const AuthForm: React.FC<AuthFormProps> = ({ mode }) => {
   const queryError = useMemo(() => {
     const code = searchParams.get('error');
     if (!code) return null;
-    return GOOGLE_ERROR_MESSAGES[code] ?? 'Authentication failed. Please try again.';
+    return (
+      GOOGLE_ERROR_MESSAGES[code] ?? 'Authentication failed. Please try again.'
+    );
   }, [searchParams]);
 
   const displayError = error ?? queryError;
@@ -54,7 +54,9 @@ export const AuthForm: React.FC<AuthFormProps> = ({ mode }) => {
         body: JSON.stringify({ email }),
       });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({ message: res.statusText }));
+        const body = await res
+          .json()
+          .catch(() => ({ message: res.statusText }));
         throw new ApiError(
           res.status,
           (body as { message?: string }).message ?? res.statusText,
@@ -73,7 +75,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ mode }) => {
   }, [email]);
 
   const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
+    async (e: FormEvent) => {
       e.preventDefault();
       setError(null);
       setNeedsVerification(false);
@@ -116,8 +118,8 @@ export const AuthForm: React.FC<AuthFormProps> = ({ mode }) => {
             </h1>
             <p className="mt-2 text-sm text-gray-600">
               We sent a confirmation link to{' '}
-              <span className="font-medium text-gray-900">{email}</span>. Open it
-              to finish creating your account.
+              <span className="font-medium text-gray-900">{email}</span>. Open
+              it to finish creating your account.
             </p>
           </div>
           <Link
@@ -221,11 +223,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ mode }) => {
             </div>
           )}
 
-          <Button
-            type="submit"
-            isLoading={isSubmitting}
-            className="w-full"
-          >
+          <Button type="submit" isLoading={isSubmitting} className="w-full">
             {isLogin ? 'Sign in' : 'Create account'}
           </Button>
         </form>
@@ -248,4 +246,4 @@ export const AuthForm: React.FC<AuthFormProps> = ({ mode }) => {
       </div>
     </div>
   );
-};
+}

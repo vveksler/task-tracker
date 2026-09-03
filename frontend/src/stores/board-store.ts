@@ -117,7 +117,13 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       tasks: state.tasks.filter((t) => t.id !== taskId),
     })),
 
-  reorderTask: async (workspaceId, taskId, newStatus, afterTaskId, beforeTaskId) => {
+  reorderTask: async (
+    workspaceId,
+    taskId,
+    newStatus,
+    afterTaskId,
+    beforeTaskId,
+  ) => {
     // Snapshot before optimistic update
     const snapshot = get().tasks;
 
@@ -143,7 +149,9 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
     const afterOrder = insertIdx > 0 ? columnTasks[insertIdx - 1]!.order : 0;
     const beforeOrder =
-      insertIdx < columnTasks.length ? columnTasks[insertIdx]!.order : afterOrder + 2;
+      insertIdx < columnTasks.length
+        ? columnTasks[insertIdx]!.order
+        : afterOrder + 2;
     const optimisticOrder = (afterOrder + beforeOrder) / 2;
 
     const optimisticTask: Task = {
@@ -188,23 +196,17 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
   createTask: async (workspaceId, projectId, title, status) => {
     try {
-      const task = await apiFetch<Task>(
-        `/workspaces/${workspaceId}/tasks`,
-        {
-          method: 'POST',
-          body: JSON.stringify({ projectId, title, status }),
-        },
-      );
+      const task = await apiFetch<Task>(`/workspaces/${workspaceId}/tasks`, {
+        method: 'POST',
+        body: JSON.stringify({ projectId, title, status }),
+      });
       set((state) => {
         if (state.tasks.some((t) => t.id === task.id)) return state;
         return { tasks: [...state.tasks, task] };
       });
     } catch (err) {
       set({
-        error:
-          err instanceof ApiError
-            ? err.message
-            : 'Failed to create task',
+        error: err instanceof ApiError ? err.message : 'Failed to create task',
       });
     }
   },

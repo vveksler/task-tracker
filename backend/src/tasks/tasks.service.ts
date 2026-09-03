@@ -52,9 +52,7 @@ export class TasksService {
     }
 
     if (project.workspaceId !== workspaceId) {
-      throw new ForbiddenException(
-        'Project does not belong to this workspace',
-      );
+      throw new ForbiddenException('Project does not belong to this workspace');
     }
 
     if (dto.assigneeId) {
@@ -112,9 +110,7 @@ export class TasksService {
     }
 
     if (project.workspaceId !== workspaceId) {
-      throw new ForbiddenException(
-        'Project does not belong to this workspace',
-      );
+      throw new ForbiddenException('Project does not belong to this workspace');
     }
 
     return this.prisma.task.findMany({
@@ -135,9 +131,7 @@ export class TasksService {
     }
 
     if (task.project.workspaceId !== workspaceId) {
-      throw new ForbiddenException(
-        'Task does not belong to this workspace',
-      );
+      throw new ForbiddenException('Task does not belong to this workspace');
     }
 
     return task;
@@ -159,9 +153,7 @@ export class TasksService {
     }
 
     if (task.project.workspaceId !== workspaceId) {
-      throw new ForbiddenException(
-        'Task does not belong to this workspace',
-      );
+      throw new ForbiddenException('Task does not belong to this workspace');
     }
 
     if (dto.assigneeId) {
@@ -444,9 +436,7 @@ export class TasksService {
     }
 
     if (task.project.workspaceId !== workspaceId) {
-      throw new ForbiddenException(
-        'Task does not belong to this workspace',
-      );
+      throw new ForbiddenException('Task does not belong to this workspace');
     }
 
     await this.prisma.task.delete({ where: { id: taskId } });
@@ -596,7 +586,9 @@ export class TasksService {
         select: { order: true, projectId: true, status: true },
       });
       if (!anchor || anchor.projectId !== projectId) {
-        throw new BadRequestException('Invalid afterTaskId — anchor task not found in this project');
+        throw new BadRequestException(
+          'Invalid afterTaskId — anchor task not found in this project',
+        );
       }
       afterOrder = anchor.order;
     }
@@ -607,7 +599,9 @@ export class TasksService {
         select: { order: true, projectId: true, status: true },
       });
       if (!anchor || anchor.projectId !== projectId) {
-        throw new BadRequestException('Invalid beforeTaskId — anchor task not found in this project');
+        throw new BadRequestException(
+          'Invalid beforeTaskId — anchor task not found in this project',
+        );
       }
       beforeOrder = anchor.order;
     }

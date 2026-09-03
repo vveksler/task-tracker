@@ -14,7 +14,7 @@ interface ActivityHeatmapProps {
  * Renders a grid of day cells colored by the sum of created + updated
  * tasks. Weeks run left-to-right, days-of-week run top-to-bottom.
  */
-export const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({ data }) => {
+export function ActivityHeatmap({ data }: ActivityHeatmapProps) {
   const svgRef = useRef<SVGSVGElement>(null);
 
   const dayMap = useMemo(() => {
@@ -93,9 +93,7 @@ export const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({ data }) => {
       .attr('y', marginTop - 6)
       .attr('font-size', 10)
       .attr('fill', '#6b7280')
-      .text((d) =>
-        d.toLocaleDateString('en-US', { month: 'short' }),
-      );
+      .text((d) => d.toLocaleDateString('en-US', { month: 'short' }));
 
     // Cells
     const tooltip = d3
@@ -134,7 +132,9 @@ export const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({ data }) => {
         const count = dayMap.get(key) ?? 0;
         tooltip
           .style('opacity', 1)
-          .html(`<strong>${key}</strong>: ${count} task${count !== 1 ? 's' : ''}`);
+          .html(
+            `<strong>${key}</strong>: ${count} task${count !== 1 ? 's' : ''}`,
+          );
       })
       .on('mousemove', (event) => {
         tooltip
@@ -151,7 +151,9 @@ export const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({ data }) => {
   }, [data, dayMap]);
 
   if (data.length === 0) {
-    return <p className="py-8 text-center text-sm text-gray-400">No activity data</p>;
+    return (
+      <p className="py-8 text-center text-sm text-gray-400">No activity data</p>
+    );
   }
 
   return (
@@ -159,4 +161,4 @@ export const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({ data }) => {
       <svg ref={svgRef} />
     </div>
   );
-};
+}

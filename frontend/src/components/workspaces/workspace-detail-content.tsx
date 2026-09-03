@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
@@ -16,12 +16,18 @@ interface WorkspaceDetailContentProps {
   initialProjects: Project[];
 }
 
-export const WorkspaceDetailContent: React.FC<WorkspaceDetailContentProps> = ({
+export function WorkspaceDetailContent({
   workspaceId,
   initialProjects,
-}) => {
+}: WorkspaceDetailContentProps) {
   const router = useRouter();
-  const { workspace, isOwner, isAdmin, isLoading: wsLoading, refetch } = useWorkspace();
+  const {
+    workspace,
+    isOwner,
+    isAdmin,
+    isLoading: wsLoading,
+    refetch,
+  } = useWorkspace();
   const { subscribeApplied } = useAssistant();
 
   const [projects, setProjects] = useState<Project[]>(initialProjects);
@@ -56,7 +62,7 @@ export const WorkspaceDetailContent: React.FC<WorkspaceDetailContentProps> = ({
   const [editProjectName, setEditProjectName] = useState('');
 
   const handleCreateProject = useCallback(
-    async (e: React.FormEvent) => {
+    async (e: FormEvent) => {
       e.preventDefault();
       if (!newName.trim()) return;
       setIsCreating(true);
@@ -102,9 +108,14 @@ export const WorkspaceDetailContent: React.FC<WorkspaceDetailContentProps> = ({
       }
       const updated = await apiFetch<Project>(
         `/workspaces/${workspaceId}/projects/${projectId}`,
-        { method: 'PATCH', body: JSON.stringify({ name: editProjectName.trim() }) },
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ name: editProjectName.trim() }),
+        },
       );
-      setProjects((prev) => prev.map((p) => (p.id === projectId ? updated : p)));
+      setProjects((prev) =>
+        prev.map((p) => (p.id === projectId ? updated : p)),
+      );
       setEditingProjectId(null);
     },
     [workspaceId, editProjectName],
@@ -132,14 +143,20 @@ export const WorkspaceDetailContent: React.FC<WorkspaceDetailContentProps> = ({
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/workspaces" className="text-sm text-gray-500 hover:text-gray-700">
+        <Link
+          href="/workspaces"
+          className="text-sm text-gray-500 hover:text-gray-700"
+        >
           &larr; Workspaces
         </Link>
 
         <div className="mt-2 flex flex-wrap items-center gap-2 sm:gap-3">
           {isEditingName ? (
             <form
-              onSubmit={(e) => { e.preventDefault(); handleSaveWorkspaceName(); }}
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSaveWorkspaceName();
+              }}
               className="flex min-w-0 flex-1 items-center gap-2"
             >
               <input
@@ -169,7 +186,11 @@ export const WorkspaceDetailContent: React.FC<WorkspaceDetailContentProps> = ({
                 Edit
               </Button>
               {isOwner && (
-                <Button variant="ghost" size="sm" onClick={handleDeleteWorkspace}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDeleteWorkspace}
+                >
                   Delete
                 </Button>
               )}
@@ -191,7 +212,11 @@ export const WorkspaceDetailContent: React.FC<WorkspaceDetailContentProps> = ({
 
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-gray-800">Projects</h2>
-        <Button size="sm" onClick={() => setShowCreate(true)} className="shrink-0">
+        <Button
+          size="sm"
+          onClick={() => setShowCreate(true)}
+          className="shrink-0"
+        >
           New project
         </Button>
       </div>
@@ -212,7 +237,11 @@ export const WorkspaceDetailContent: React.FC<WorkspaceDetailContentProps> = ({
             />
           </div>
           <div className="flex gap-2">
-            <Button type="submit" isLoading={isCreating} className="flex-1 sm:flex-none">
+            <Button
+              type="submit"
+              isLoading={isCreating}
+              className="flex-1 sm:flex-none"
+            >
               Create
             </Button>
             <Button
@@ -229,7 +258,9 @@ export const WorkspaceDetailContent: React.FC<WorkspaceDetailContentProps> = ({
 
       {projects.length === 0 ? (
         <div className="rounded-lg border-2 border-dashed border-gray-300 py-12 text-center">
-          <p className="text-gray-500">No projects yet. Create one to get started.</p>
+          <p className="text-gray-500">
+            No projects yet. Create one to get started.
+          </p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -309,4 +340,4 @@ export const WorkspaceDetailContent: React.FC<WorkspaceDetailContentProps> = ({
       )}
     </div>
   );
-};
+}

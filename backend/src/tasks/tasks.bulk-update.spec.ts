@@ -243,10 +243,7 @@ describe('TasksService.bulkUpdate / bulkDelete', () => {
   });
 
   it('throws when projectName matches multiple projects without projectId', async () => {
-    prisma.project.findMany.mockResolvedValue([
-      { id: 'p1' },
-      { id: 'p2' },
-    ]);
+    prisma.project.findMany.mockResolvedValue([{ id: 'p1' }, { id: 'p2' }]);
 
     await expect(
       service.bulkDelete('ws-1', {

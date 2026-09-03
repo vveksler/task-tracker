@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from 'next/server';
 import {
   BACKEND_URL,
   REFRESH_COOKIE_NAME,
   refreshCookieOptions,
-} from "./app/api/auth/cookie-config";
-import { buildCspHeader, createCspNonce } from "./lib/csp";
+} from './app/api/auth/cookie-config';
+import { buildCspHeader, createCspNonce } from './lib/csp';
 
 /**
  * Auth middleware for protected routes + CSP for all matched document routes.
@@ -46,12 +46,12 @@ interface RefreshResponse {
 }
 
 function isProtectedPath(pathname: string): boolean {
-  return pathname === "/workspaces" || pathname.startsWith("/workspaces/");
+  return pathname === '/workspaces' || pathname.startsWith('/workspaces/');
 }
 
 /** Put CSP on the browser-facing response (document). */
 function setResponseCsp(response: NextResponse, csp: string): NextResponse {
-  response.headers.set("Content-Security-Policy", csp);
+  response.headers.set('Content-Security-Policy', csp);
   return response;
 }
 
@@ -63,8 +63,8 @@ function nextWithCsp(
 ): NextResponse {
   const requestHeaders = new Headers(request.headers);
   // Must be set *before* next(): Next SSR reads CSP/nonce from the request.
-  requestHeaders.set("x-nonce", nonce);
-  requestHeaders.set("Content-Security-Policy", csp);
+  requestHeaders.set('x-nonce', nonce);
+  requestHeaders.set('Content-Security-Policy', csp);
   if (extraRequestHeaders) {
     for (const [key, value] of Object.entries(extraRequestHeaders)) {
       requestHeaders.set(key, value);
@@ -92,23 +92,20 @@ export async function middleware(request: NextRequest) {
   const refreshToken = request.cookies.get(REFRESH_COOKIE_NAME)?.value;
 
   if (!refreshToken) {
-    const response = redirectWithCsp(
-      new URL("/auth/login", request.url),
-      csp,
-    );
+    const response = redirectWithCsp(new URL('/auth/login', request.url), csp);
     return response;
   }
 
   try {
     const res = await fetch(`${BACKEND_URL}/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken }),
     });
 
     if (!res.ok) {
       const response = redirectWithCsp(
-        new URL("/auth/login", request.url),
+        new URL('/auth/login', request.url),
         csp,
       );
       response.cookies.delete(REFRESH_COOKIE_NAME);
@@ -118,7 +115,7 @@ export async function middleware(request: NextRequest) {
     const data = (await res.json()) as RefreshResponse;
 
     const response = nextWithCsp(request, csp, nonce, {
-      "x-access-token": data.accessToken,
+      'x-access-token': data.accessToken,
     });
 
     // If backend rotated the token, persist the new refresh token.
@@ -133,7 +130,7 @@ export async function middleware(request: NextRequest) {
 
     return response;
   } catch {
-    return redirectWithCsp(new URL("/auth/login", request.url), csp);
+    return redirectWithCsp(new URL('/auth/login', request.url), csp);
   }
 }
 
@@ -149,6 +146,6 @@ export async function middleware(request: NextRequest) {
  */
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };

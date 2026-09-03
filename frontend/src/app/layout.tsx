@@ -1,20 +1,21 @@
-import type { Metadata } from "next";
-import { headers } from "next/headers";
-import { Inter } from "next/font/google";
-import "./globals.css";
-import { Providers } from "./providers";
+import type { ReactNode } from 'react';
+import type { Metadata } from 'next';
+import { headers } from 'next/headers';
+import { Inter } from 'next/font/google';
+import './globals.css';
+import { Providers } from './providers';
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: "Task Tracker",
-  description: "Full-stack Kanban task tracker",
+  title: 'Task Tracker',
+  description: 'Full-stack Kanban task tracker',
 };
 
 export const viewport = {
-  width: "device-width",
+  width: 'device-width',
   initialScale: 1,
-  viewportFit: "cover" as const,
+  viewportFit: 'cover' as const,
 };
 
 /**
@@ -23,14 +24,10 @@ export const viewport = {
  * it onto scripts during SSR when the request (and its CSP header) exists.
  * Fully static pages are built without a request, so they cannot use nonces.
  */
-const RootLayout = async ({
-  children,
-}: {
-  children: React.ReactNode;
-}) => {
+const RootLayout = async ({ children }: { children: ReactNode }) => {
   // Available if you add your own <Script nonce={nonce}>; Next also reads the
   // CSP nonce from the request CSP header automatically for framework scripts.
-  void (await headers()).get("x-nonce");
+  void (await headers()).get('x-nonce');
 
   return (
     <html lang="en">

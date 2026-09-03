@@ -2,9 +2,7 @@ import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { AiAssistantEnabledGuard } from './ai-assistant-enabled.guard';
 import { PrismaService } from '../prisma/prisma.service';
 
-function createMockContext(
-  params: Record<string, string>,
-): ExecutionContext {
+function createMockContext(params: Record<string, string>): ExecutionContext {
   return {
     switchToHttp: () => ({
       getRequest: () => ({ params }),

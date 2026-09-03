@@ -7,6 +7,6 @@ interface ProvidersProps {
   children: ReactNode;
 }
 
-export const Providers: React.FC<ProvidersProps> = ({ children }) => {
+export function Providers({ children }: ProvidersProps) {
   return <AuthProvider>{children}</AuthProvider>;
-};
+}

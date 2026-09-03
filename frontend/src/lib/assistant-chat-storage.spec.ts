@@ -40,12 +40,8 @@ describe('assistant-chat-storage', () => {
   });
 
   it('clears only the matching thread', () => {
-    saveAssistantChat('u1', 'ws1', [
-      { id: '1', role: 'user', content: 'a' },
-    ]);
-    saveAssistantChat('u1', 'ws2', [
-      { id: '2', role: 'user', content: 'b' },
-    ]);
+    saveAssistantChat('u1', 'ws1', [{ id: '1', role: 'user', content: 'a' }]);
+    saveAssistantChat('u1', 'ws2', [{ id: '2', role: 'user', content: 'b' }]);
     clearAssistantChat('u1', 'ws1');
     expect(loadAssistantChat('u1', 'ws1')).toEqual([]);
     expect(loadAssistantChat('u1', 'ws2')).toEqual([

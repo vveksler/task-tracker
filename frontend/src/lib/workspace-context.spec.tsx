@@ -19,8 +19,16 @@ jest.mock('@/lib/auth-context', () => ({
 import { WorkspaceProvider, useWorkspace } from './workspace-context';
 
 const adminUser = { id: 'user-admin', email: 'admin@test.com', name: 'Admin' };
-const memberUser = { id: 'user-member', email: 'member@test.com', name: 'Member' };
-const outsiderUser = { id: 'user-outsider', email: 'outsider@test.com', name: 'Outsider' };
+const memberUser = {
+  id: 'user-member',
+  email: 'member@test.com',
+  name: 'Member',
+};
+const outsiderUser = {
+  id: 'user-outsider',
+  email: 'outsider@test.com',
+  name: 'Outsider',
+};
 
 const workspace: Workspace = {
   id: 'ws-1',

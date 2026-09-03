@@ -2,13 +2,9 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // Client maps for production only. Do not set webpack.devtool in `dev`:
+  // Next reverts it to `false` and editor breakpoints stop binding.
   productionBrowserSourceMaps: true,
-  webpack: (config, { dev }) => {
-    if (dev) {
-      config.devtool = 'source-map';
-    }
-    return config;
-  },
 };
 
 export default nextConfig;

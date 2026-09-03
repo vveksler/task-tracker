@@ -3,8 +3,12 @@ import { stream } from 'hono/streaming';
 import { embedText, embeddingLiteral } from './embeddings.js';
 import { getPool, tryConnectPool } from './db.js';
 import { retrieveRelevantTasks } from './retrieval.js';
-import { retrievalQuery, normalizeHistory, type HistoryTurn } from './generation/history.js';
-import { streamAnswer } from './generation/stream-answer.js';
+import {
+  retrievalQuery,
+  normalizeHistory,
+  type HistoryTurn,
+} from './generation/history.js';
+import { sseComment, streamAnswer } from './generation/stream-answer.js';
 
 export type AskBody = {
   workspace_id: string;
@@ -49,18 +53,14 @@ export function createApp(): Hono {
     const history: HistoryTurn[] = normalizeHistory(
       Array.isArray(body.history) ? body.history : [],
     );
-    const query = retrievalQuery(body.question, history);
-    const queryEmbedding = await embedText(query);
-    const relevantTasks = await retrieveRelevantTasks(
-      body.workspace_id,
-      queryEmbedding,
-      5,
-    );
 
     c.header('Content-Type', 'text/event-stream');
     c.header('Cache-Control', 'no-cache');
     c.header('Connection', 'keep-alive');
+    c.header('X-Accel-Buffering', 'no');
 
+    // Open the SSE body before OpenAI embed so Nest's fetch gets headers
+    // immediately (otherwise a slow first embed looks like a dead service).
     return stream(c, async (streamWriter) => {
       const ac = new AbortController();
       streamWriter.onAbort(() => {
@@ -68,6 +68,16 @@ export function createApp(): Hono {
       });
 
       try {
+        await streamWriter.write(sseComment('ping'));
+
+        const query = retrievalQuery(body.question, history);
+        const queryEmbedding = await embedText(query);
+        const relevantTasks = await retrieveRelevantTasks(
+          body.workspace_id,
+          queryEmbedding,
+          5,
+        );
+
         for await (const event of streamAnswer({
           question: body.question,
           contextTasks: relevantTasks,

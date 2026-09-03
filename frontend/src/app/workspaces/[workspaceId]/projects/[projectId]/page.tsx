@@ -35,9 +35,7 @@ const BoardPage = () => {
   useEffect(() => {
     let cancelled = false;
 
-    apiFetch<Project>(
-      `/workspaces/${workspaceId}/projects/${projectId}`,
-    )
+    apiFetch<Project>(`/workspaces/${workspaceId}/projects/${projectId}`)
       .then((data) => {
         if (!cancelled) setProject(data);
       })

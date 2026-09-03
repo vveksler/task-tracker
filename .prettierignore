@@ -1,0 +1,21 @@
+# Build / deps
+node_modules
+dist
+.next
+coverage
+*.tsbuildinfo
+
+# Lockfiles (npm owns the format)
+package-lock.json
+
+# Editor — launch.json is often OS-locked while the IDE is open
+.vscode/launch.json
+
+# Generated / vendored
+frontend/next-env.d.ts
+helm/
+postman/
+
+# Env
+.env
+.env.*

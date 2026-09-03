@@ -16,9 +16,11 @@ interface ActivityLineChartProps {
   data: ActivityDay[];
 }
 
-export const ActivityLineChart: React.FC<ActivityLineChartProps> = ({ data }) => {
+export function ActivityLineChart({ data }: ActivityLineChartProps) {
   if (data.length === 0) {
-    return <p className="py-8 text-center text-sm text-gray-400">No activity</p>;
+    return (
+      <p className="py-8 text-center text-sm text-gray-400">No activity</p>
+    );
   }
 
   const formatted = data.map((d) => ({
@@ -60,4 +62,4 @@ export const ActivityLineChart: React.FC<ActivityLineChartProps> = ({ data }) =>
       </LineChart>
     </ResponsiveContainer>
   );
-};
+}

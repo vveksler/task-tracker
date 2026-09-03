@@ -12,10 +12,7 @@ export async function POST() {
   const refreshCookie = cookieStore.get(REFRESH_COOKIE_NAME);
 
   if (!refreshCookie?.value) {
-    return NextResponse.json(
-      { message: 'No refresh token' },
-      { status: 401 },
-    );
+    return NextResponse.json({ message: 'No refresh token' }, { status: 401 });
   }
 
   const backendRes = await fetch(`${BACKEND_URL}/auth/refresh`, {

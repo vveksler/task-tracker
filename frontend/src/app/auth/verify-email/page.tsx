@@ -1,6 +1,12 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useState,
+  type FormEvent,
+} from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ApiError, setAccessToken } from '@/lib/api-client';
@@ -37,7 +43,9 @@ function VerifyEmailContent() {
           body: JSON.stringify({ token }),
         });
 
-        const body = await res.json().catch(() => ({ message: res.statusText }));
+        const body = await res
+          .json()
+          .catch(() => ({ message: res.statusText }));
 
         if (!res.ok) {
           throw new ApiError(
@@ -73,7 +81,7 @@ function VerifyEmailContent() {
   }, [token, router, setSessionUser]);
 
   const handleResend = useCallback(
-    async (e: React.FormEvent) => {
+    async (e: FormEvent) => {
       e.preventDefault();
       setError(null);
       setResendDone(false);
@@ -87,7 +95,9 @@ function VerifyEmailContent() {
         });
 
         if (!res.ok) {
-          const body = await res.json().catch(() => ({ message: res.statusText }));
+          const body = await res
+            .json()
+            .catch(() => ({ message: res.statusText }));
           throw new ApiError(
             res.status,
             (body as { message?: string }).message ?? res.statusText,

@@ -36,25 +36,19 @@ describe('WorkspaceRolesGuard', () => {
   });
 
   it('should allow an ADMIN when @Roles(ADMIN) is set', async () => {
-    const ctx = createMockContext(
-      { sub: 'user-1' },
-      { id: 'ws-1' },
-    );
+    const ctx = createMockContext({ sub: 'user-1' }, { id: 'ws-1' });
     prisma.workspaceMember.findUnique.mockResolvedValue({
       role: WorkspaceRole.ADMIN,
     });
-    jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([
-      WorkspaceRole.ADMIN,
-    ]);
+    jest
+      .spyOn(reflector, 'getAllAndOverride')
+      .mockReturnValue([WorkspaceRole.ADMIN]);
 
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
   });
 
   it('should allow any member when no @Roles() is set', async () => {
-    const ctx = createMockContext(
-      { sub: 'user-1' },
-      { id: 'ws-1' },
-    );
+    const ctx = createMockContext({ sub: 'user-1' }, { id: 'ws-1' });
     prisma.workspaceMember.findUnique.mockResolvedValue({
       role: WorkspaceRole.MEMBER,
     });
@@ -69,35 +63,26 @@ describe('WorkspaceRolesGuard', () => {
    * proves the guard rejects a MEMBER when @Roles(ADMIN) is required.
    */
   it('should reject a MEMBER when @Roles(ADMIN) is required', async () => {
-    const ctx = createMockContext(
-      { sub: 'user-1' },
-      { id: 'ws-1' },
-    );
+    const ctx = createMockContext({ sub: 'user-1' }, { id: 'ws-1' });
     prisma.workspaceMember.findUnique.mockResolvedValue({
       role: WorkspaceRole.MEMBER,
     });
-    jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([
-      WorkspaceRole.ADMIN,
-    ]);
+    jest
+      .spyOn(reflector, 'getAllAndOverride')
+      .mockReturnValue([WorkspaceRole.ADMIN]);
 
     await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
   });
 
   it('should reject a non-member of the workspace', async () => {
-    const ctx = createMockContext(
-      { sub: 'user-1' },
-      { id: 'ws-1' },
-    );
+    const ctx = createMockContext({ sub: 'user-1' }, { id: 'ws-1' });
     prisma.workspaceMember.findUnique.mockResolvedValue(null);
 
     await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
   });
 
   it('should read workspaceId from params.workspaceId (nested routes)', async () => {
-    const ctx = createMockContext(
-      { sub: 'user-1' },
-      { workspaceId: 'ws-1' },
-    );
+    const ctx = createMockContext({ sub: 'user-1' }, { workspaceId: 'ws-1' });
     prisma.workspaceMember.findUnique.mockResolvedValue({
       role: WorkspaceRole.MEMBER,
     });

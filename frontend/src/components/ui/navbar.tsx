@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from './button';
 
-export const Navbar: React.FC = () => {
+export function Navbar() {
   const { user, logout } = useAuth();
 
   if (!user) return null;
@@ -23,11 +23,16 @@ export const Navbar: React.FC = () => {
           <span className="truncate text-sm text-gray-600" title={user.name}>
             {user.name}
           </span>
-          <Button variant="ghost" size="sm" onClick={logout} className="shrink-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={logout}
+            className="shrink-0"
+          >
             Sign out
           </Button>
         </div>
       </div>
     </nav>
   );
-};
+}

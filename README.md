@@ -42,21 +42,21 @@ vulnerability caught during review.
 
 ## Tech stack
 
-| Layer         | Choice                                             | Why                                                |
-| ------------- | -------------------------------------------------- | -------------------------------------------------- |
-| Backend       | NestJS + TypeScript                                | Modular, DI-based, strong NestJS ecosystem         |
-| ORM           | Prisma                                             | Type-safe queries, painless migrations             |
-| Database      | PostgreSQL 16                                      | Relational data with real foreign keys             |
-| Auth          | JWT access (in-memory) + refresh (httpOnly cookie) | Secure by design, not by accident                  |
-| Realtime      | Socket.io via NestJS Gateway                       | Room-per-workspace, JWT-authenticated handshake    |
-| Frontend      | Next.js App Router                                 | Server Components + Client Components, BFF pattern |
-| State         | Zustand                                            | Lightweight, works great with optimistic updates   |
-| Drag & Drop   | @dnd-kit                                           | Built for reorder + cross-container moves          |
-| Charts        | Recharts + D3                                      | Standard charts + hand-rolled activity heatmap     |
+| Layer         | Choice                                                      | Why                                                 |
+| ------------- | ----------------------------------------------------------- | --------------------------------------------------- |
+| Backend       | NestJS + TypeScript                                         | Modular, DI-based, strong NestJS ecosystem          |
+| ORM           | Prisma                                                      | Type-safe queries, painless migrations              |
+| Database      | PostgreSQL 16                                               | Relational data with real foreign keys              |
+| Auth          | JWT access (in-memory) + refresh (httpOnly cookie)          | Secure by design, not by accident                   |
+| Realtime      | Socket.io via NestJS Gateway                                | Room-per-workspace, JWT-authenticated handshake     |
+| Frontend      | Next.js App Router                                          | Server Components + Client Components, BFF pattern  |
+| State         | Zustand                                                     | Lightweight, works great with optimistic updates    |
+| Drag & Drop   | @dnd-kit                                                    | Built for reorder + cross-container moves           |
+| Charts        | Recharts + D3                                               | Standard charts + hand-rolled activity heatmap      |
 | AI Assistant  | Hono + LangChain.js + OpenAI embeddings + Claude + pgvector | Workspace-scoped RAG; Nest proxies; suggest+confirm |
-| Containers    | Docker (multi-stage)                               | Small production images (~150 MB)                  |
-| Orchestration | Kubernetes (Helm chart)                            | StatefulSet, Ingress, HPA, init containers         |
-| CI            | GitHub Actions                                     | Lint + type-check + test + Docker build on push    |
+| Containers    | Docker (multi-stage)                                        | Small production images (~150 MB)                   |
+| Orchestration | Kubernetes (Helm chart)                                     | StatefulSet, Ingress, HPA, init containers          |
+| CI            | GitHub Actions                                              | Lint + type-check + test + Docker build on push     |
 
 ## Getting started
 
@@ -149,18 +149,18 @@ Railway does **not** use Helm `values.yaml`. Set Variables on each service in th
 
 **Backend service** (Nest):
 
-| Variable | Example / notes |
-| --- | --- |
-| `DATABASE_URL` | From Railway Postgres plugin |
-| `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | Long random secrets |
-| `FRONTEND_ORIGIN` | `https://<frontend>.up.railway.app` (exact, for CORS + email links) |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google Cloud OAuth client |
-| `GOOGLE_CALLBACK_URL` | `https://<frontend>.up.railway.app/api/auth/google/callback` |
-| `MAIL_HOST` / `MAIL_PORT` / `MAIL_USER` / `MAIL_PASS` | SMTP only if not using Resend (Hobby blocks SMTP) |
-| `RESEND_API_KEY` | **Preferred** — [Resend](https://resend.com) HTTPS API |
-| `MAIL_FROM` | After domain verify: `Task Tracker <noreply@yourdomain.com>` |
-| `AI_ASSISTANT_URL` | Private URL of the AI service. Prefer a Variable Reference, e.g. `http://${{ai-assistant.RAILWAY_PRIVATE_DOMAIN}}:${{ai-assistant.PORT}}` (use your AI service’s exact name; port is often `8080` on Railway) |
-| `NODE_ENV` | `production` |
+| Variable                                              | Example / notes                                                                                                                                                                                               |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                        | From Railway Postgres plugin                                                                                                                                                                                  |
+| `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET`            | Long random secrets                                                                                                                                                                                           |
+| `FRONTEND_ORIGIN`                                     | `https://<frontend>.up.railway.app` (exact, for CORS + email links)                                                                                                                                           |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`           | Google Cloud OAuth client                                                                                                                                                                                     |
+| `GOOGLE_CALLBACK_URL`                                 | `https://<frontend>.up.railway.app/api/auth/google/callback`                                                                                                                                                  |
+| `MAIL_HOST` / `MAIL_PORT` / `MAIL_USER` / `MAIL_PASS` | SMTP only if not using Resend (Hobby blocks SMTP)                                                                                                                                                             |
+| `RESEND_API_KEY`                                      | **Preferred** — [Resend](https://resend.com) HTTPS API                                                                                                                                                        |
+| `MAIL_FROM`                                           | After domain verify: `Task Tracker <noreply@yourdomain.com>`                                                                                                                                                  |
+| `AI_ASSISTANT_URL`                                    | Private URL of the AI service. Prefer a Variable Reference, e.g. `http://${{ai-assistant.RAILWAY_PRIVATE_DOMAIN}}:${{ai-assistant.PORT}}` (use your AI service’s exact name; port is often `8080` on Railway) |
+| `NODE_ENV`                                            | `production`                                                                                                                                                                                                  |
 
 **Email (forgot-password / verify):** use Resend with a verified domain. Add the
 domain in Resend → copy SPF/DKIM into Cloudflare DNS (DKIM records = **DNS only**,
@@ -171,15 +171,15 @@ later attach a subdomain to the frontend).
 
 **Frontend service** (Next):
 
-| Variable | Example / notes |
-| --- | --- |
-| `NEXT_PUBLIC_API_URL` | Backend public URL (also set as Docker **build** arg) |
-| `NEXT_PUBLIC_WS_URL` | Same as API URL (Socket.io) |
-| `NEXT_PUBLIC_APP_URL` | Frontend public URL |
-| `APP_URL` | Same as above (runtime; preferred for OAuth redirects) |
-| `BACKEND_INTERNAL_URL` | Private Railway URL to backend if available |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CALLBACK_URL` | Same callback as backend (secret stays on Nest) |
-| `COOKIE_SECURE` | omit or `true` on HTTPS |
+| Variable                                   | Example / notes                                        |
+| ------------------------------------------ | ------------------------------------------------------ |
+| `NEXT_PUBLIC_API_URL`                      | Backend public URL (also set as Docker **build** arg)  |
+| `NEXT_PUBLIC_WS_URL`                       | Same as API URL (Socket.io)                            |
+| `NEXT_PUBLIC_APP_URL`                      | Frontend public URL                                    |
+| `APP_URL`                                  | Same as above (runtime; preferred for OAuth redirects) |
+| `BACKEND_INTERNAL_URL`                     | Private Railway URL to backend if available            |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CALLBACK_URL` | Same callback as backend (secret stays on Nest)        |
+| `COOKIE_SECURE`                            | omit or `true` on HTTPS                                |
 
 Also add the production callback URI in [Google Cloud Console](https://console.cloud.google.com/)
 Authorized redirect URIs.
@@ -193,12 +193,12 @@ New Railway service from this repo:
 3. Prefer **private networking only** — Nest proxies ask/embed; no public domain required
 4. Healthcheck: `GET /health/live` (ready probe hits Postgres at `/health/ready`)
 
-| Variable | Example / notes |
-| --- | --- |
-| `DATABASE_URL` | Same Postgres as backend (node-postgres; `?schema=public` optional) |
-| `OPENAI_API_KEY` | Embeddings (`text-embedding-3-small`) |
-| `ANTHROPIC_API_KEY` | Claude answer + proposal extraction |
-| `PORT` | Set by Railway automatically; image defaults to `8000` |
+| Variable            | Example / notes                                                     |
+| ------------------- | ------------------------------------------------------------------- |
+| `DATABASE_URL`      | Same Postgres as backend (node-postgres; `?schema=public` optional) |
+| `OPENAI_API_KEY`    | Embeddings (`text-embedding-3-small`)                               |
+| `ANTHROPIC_API_KEY` | Claude answer + proposal extraction                                 |
+| `PORT`              | Set by Railway automatically; image defaults to `8000`              |
 
 **Postgres / pgvector:** RAG migrations run `CREATE EXTENSION vector`. On the Railway
 Postgres plugin, enable it once (SQL shell or migrate job):
@@ -248,15 +248,15 @@ service never writes task mutations to the DB; Nest executes confirmed actions w
 
 ### What it can do
 
-| Capability | How |
-| --- | --- |
-| Q&A over tasks | Vector retrieval + live project task snapshot when on a board |
-| Create / update task | Proposal → existing Nest task APIs (incl. `assigneeId`) |
-| Bulk update / delete tasks | Filter by keyword, assignee, status, **project id/name** |
-| Create project / dedupe / delete project | Nest project APIs (`dedupe` / delete = ADMIN) |
-| Navigate to a project | Client-side `router.push` on **Go** |
-| Follow-ups (“yes”, “да”) | Last ~12 turns sent as `history` |
-| Persist thread | `localStorage` key `tt:assistant-chat:{userId}:{workspaceId}` |
+| Capability                               | How                                                           |
+| ---------------------------------------- | ------------------------------------------------------------- |
+| Q&A over tasks                           | Vector retrieval + live project task snapshot when on a board |
+| Create / update task                     | Proposal → existing Nest task APIs (incl. `assigneeId`)       |
+| Bulk update / delete tasks               | Filter by keyword, assignee, status, **project id/name**      |
+| Create project / dedupe / delete project | Nest project APIs (`dedupe` / delete = ADMIN)                 |
+| Navigate to a project                    | Client-side `router.push` on **Go**                           |
+| Follow-ups (“yes”, “да”)                 | Last ~12 turns sent as `history`                              |
+| Persist thread                           | `localStorage` key `tt:assistant-chat:{userId}:{workspaceId}` |
 
 ### UI
 
@@ -292,12 +292,12 @@ npx ts-node scripts/seed-rag-demo.ts
 
 ### Env
 
-| Service | Variable | Notes |
-| --- | --- | --- |
-| Backend | `AI_ASSISTANT_URL` | e.g. `http://localhost:8000` |
-| AI Assistant | `DATABASE_URL` | Same Postgres (node-postgres) |
-| AI Assistant | `OPENAI_API_KEY` | Embeddings |
-| AI Assistant | `ANTHROPIC_API_KEY` | Chat + proposal extraction |
+| Service      | Variable            | Notes                         |
+| ------------ | ------------------- | ----------------------------- |
+| Backend      | `AI_ASSISTANT_URL`  | e.g. `http://localhost:8000`  |
+| AI Assistant | `DATABASE_URL`      | Same Postgres (node-postgres) |
+| AI Assistant | `OPENAI_API_KEY`    | Embeddings                    |
+| AI Assistant | `ANTHROPIC_API_KEY` | Chat + proposal extraction    |
 
 ## Repo structure
 

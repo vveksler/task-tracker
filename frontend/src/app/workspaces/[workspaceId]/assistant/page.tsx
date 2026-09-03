@@ -14,9 +14,7 @@ interface AssistantPageProps {
  */
 const AssistantPage = async ({ params }: AssistantPageProps) => {
   const { workspaceId } = await params;
-  const workspace = await serverFetch<Workspace>(
-    `/workspaces/${workspaceId}`,
-  );
+  const workspace = await serverFetch<Workspace>(`/workspaces/${workspaceId}`);
 
   if (!workspace) redirect('/auth/login');
 

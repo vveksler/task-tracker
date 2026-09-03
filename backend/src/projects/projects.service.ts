@@ -69,9 +69,7 @@ export class ProjectsService {
     }
 
     if (project.workspaceId !== workspaceId) {
-      throw new ForbiddenException(
-        'Project does not belong to this workspace',
-      );
+      throw new ForbiddenException('Project does not belong to this workspace');
     }
 
     return project;
@@ -88,9 +86,7 @@ export class ProjectsService {
     }
 
     if (project.workspaceId !== workspaceId) {
-      throw new ForbiddenException(
-        'Project does not belong to this workspace',
-      );
+      throw new ForbiddenException('Project does not belong to this workspace');
     }
 
     return this.prisma.project.update({
@@ -111,9 +107,7 @@ export class ProjectsService {
     }
 
     if (project.workspaceId !== workspaceId) {
-      throw new ForbiddenException(
-        'Project does not belong to this workspace',
-      );
+      throw new ForbiddenException('Project does not belong to this workspace');
     }
 
     // Emit WS delete events for all tasks before cascade delete
@@ -158,7 +152,8 @@ export class ProjectsService {
       const sorted = [...group].sort(
         (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
       );
-      const keeper = keep === 'newest' ? sorted[sorted.length - 1]! : sorted[0]!;
+      const keeper =
+        keep === 'newest' ? sorted[sorted.length - 1]! : sorted[0]!;
       keptProjectIds.push(keeper.id);
       for (const p of sorted) {
         if (p.id === keeper.id) continue;

@@ -40,14 +40,21 @@ const app = createApp();
 // Do not block process start on DB — Railway healthcheck hits /health/live.
 void tryConnectPool();
 
+// Bind IPv6 unspecified (`::`). Railway private DNS is AAAA-only; `0.0.0.0`
+// is IPv4 and first Nest fetch over *.railway.internal fails. On Linux
+// ipv6Only defaults to false, so IPv4-mapped connections (compose/minikube)
+// still work.
 const server = serve(
   {
     fetch: app.fetch,
     port: config.port,
-    hostname: '0.0.0.0',
+    hostname: '::',
   },
   (info) => {
-    console.log(`ai-assistant listening on http://0.0.0.0:${info.port}`);
+    const host = info.address.includes(':')
+      ? `[${info.address}]`
+      : info.address;
+    console.log(`ai-assistant listening on http://${host}:${info.port}`);
   },
 );
 

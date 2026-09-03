@@ -15,12 +15,12 @@ interface AnalyticsDashboardProps {
   assigneeData: AssigneeLoad[];
 }
 
-export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
+export function AnalyticsDashboard({
   workspaceId,
   statusData,
   activityData,
   assigneeData,
-}) => {
+}: AnalyticsDashboardProps) {
   const { workspace } = useWorkspace();
   const totalTasks = statusData.reduce((sum, d) => sum + d.count, 0);
 
@@ -72,4 +72,4 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       </div>
     </div>
   );
-};
+}

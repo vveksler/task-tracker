@@ -1,4 +1,5 @@
 import { FlatCompat } from '@eslint/eslintrc';
+import eslintConfigPrettier from 'eslint-config-prettier';
 
 const compat = new FlatCompat({
   baseDirectory: import.meta.dirname,
@@ -16,6 +17,7 @@ const eslintConfig = [
   {
     ignores: ['.next/', 'node_modules/', 'coverage/', 'next-env.d.ts'],
   },
+  eslintConfigPrettier,
 ];
 
 export default eslintConfig;

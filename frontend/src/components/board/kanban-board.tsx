@@ -1,6 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -14,7 +21,15 @@ import {
   type DragOverEvent,
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
-import type { Task, TaskStatus, BoardSyncEvent, TaskCreatedEvent, TaskUpdatedEvent, TaskMovedEvent, TaskDeletedEvent } from '@/types/api';
+import type {
+  Task,
+  TaskStatus,
+  BoardSyncEvent,
+  TaskCreatedEvent,
+  TaskUpdatedEvent,
+  TaskMovedEvent,
+  TaskDeletedEvent,
+} from '@/types/api';
 import { useBoardStore } from '@/stores/board-store';
 import { connectSocket, disconnectSocket } from '@/lib/socket';
 import { BoardColumn } from './board-column';
@@ -31,7 +46,13 @@ const emptyColumns: Record<TaskStatus, Task[]> = {
 };
 
 function groupByStatus(tasks: Task[]): Record<TaskStatus, Task[]> {
-  const map: Record<TaskStatus, Task[]> = { ...emptyColumns, TODO: [], IN_PROGRESS: [], IN_REVIEW: [], DONE: [] };
+  const map: Record<TaskStatus, Task[]> = {
+    ...emptyColumns,
+    TODO: [],
+    IN_PROGRESS: [],
+    IN_REVIEW: [],
+    DONE: [],
+  };
   for (const task of tasks) {
     map[task.status]?.push(task);
   }
@@ -46,10 +67,7 @@ interface KanbanBoardProps {
   projectId: string;
 }
 
-export const KanbanBoard: React.FC<KanbanBoardProps> = ({
-  workspaceId,
-  projectId,
-}) => {
+export function KanbanBoard({ workspaceId, projectId }: KanbanBoardProps) {
   const {
     tasks,
     isLoading,
@@ -71,12 +89,13 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
   // Derive selectedTask from the store so WS updates are reflected in the modal
   const selectedTask = selectedTaskId
-    ? tasks.find((t) => t.id === selectedTaskId) ?? null
+    ? (tasks.find((t) => t.id === selectedTaskId) ?? null)
     : null;
 
   // Local column state used during drag for live preview.
   // Mirrors the store when not dragging; mutated on dragOver for visual feedback.
-  const [columns, setColumns] = useState<Record<TaskStatus, Task[]>>(emptyColumns);
+  const [columns, setColumns] =
+    useState<Record<TaskStatus, Task[]>>(emptyColumns);
   const isDragging = activeTask !== null;
 
   // Sync store → local columns when NOT dragging
@@ -140,7 +159,10 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     });
 
     socket.on('connect', () => {
-      socket.emit('workspace:join', { workspaceId, projectId: activeProjectId });
+      socket.emit('workspace:join', {
+        workspaceId,
+        projectId: activeProjectId,
+      });
     });
 
     return () => {
@@ -230,7 +252,9 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
       // Cross-column → move the task to the target column
       setColumns((prev) => {
-        const sourceCol = prev[activeContainer].filter((t) => t.id !== activeId);
+        const sourceCol = prev[activeContainer].filter(
+          (t) => t.id !== activeId,
+        );
         const destCol = [...prev[overContainer]];
 
         const movedTask = prev[activeContainer].find((t) => t.id === activeId);
@@ -290,7 +314,9 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
       // Determine the final position from the visual columns state
       const destCol = columns[overContainer].filter((t) => t.id !== activeId);
-      const visualIdx = columns[overContainer].findIndex((t) => t.id === activeId);
+      const visualIdx = columns[overContainer].findIndex(
+        (t) => t.id === activeId,
+      );
 
       // Convert visual index to afterTaskId / beforeTaskId
       // (excluding the active task itself from the list)
@@ -313,7 +339,13 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         return;
       }
 
-      void reorderTask(workspaceId, activeId, overContainer, afterTaskId, beforeTaskId);
+      void reorderTask(
+        workspaceId,
+        activeId,
+        overContainer,
+        afterTaskId,
+        beforeTaskId,
+      );
     },
     [tasks, columns, workspaceId, reorderTask, findContainer, clearDragLock],
   );
@@ -401,4 +433,4 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
       )}
     </div>
   );
-};
+}

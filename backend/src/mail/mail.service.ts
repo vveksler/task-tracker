@@ -1,4 +1,8 @@
-import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import nodemailer, { type Transporter } from 'nodemailer';
 
@@ -16,7 +20,7 @@ export class MailService {
   isConfigured(): boolean {
     return Boolean(
       this.config.get<string>('mail.resendApiKey') ||
-        this.config.get<string>('mail.host'),
+      this.config.get<string>('mail.host'),
     );
   }
 
@@ -143,9 +147,7 @@ export class MailService {
 
     if (!res.ok) {
       const body = await res.text();
-      this.logger.error(
-        `Resend API ${res.status} (from=${from}): ${body}`,
-      );
+      this.logger.error(`Resend API ${res.status} (from=${from}): ${body}`);
       // Surface Resend's message so misconfigured MAIL_FROM is obvious in the UI.
       let detail = body;
       try {

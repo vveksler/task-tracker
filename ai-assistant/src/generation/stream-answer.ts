@@ -28,7 +28,17 @@ import { applyScopeGuards } from './scope-guards.js';
 
 /** One SSE event. Embedded newlines become multiple `data:` fields. */
 export function sseEvent(data: string): string {
-  return data.split('\n').map((part) => `data: ${part}\n`).join('') + '\n';
+  return (
+    data
+      .split('\n')
+      .map((part) => `data: ${part}\n`)
+      .join('') + '\n'
+  );
+}
+
+/** SSE comment frame — keep-alive / open the stream. Clients ignore these. */
+export function sseComment(text: string): string {
+  return `: ${text}\n\n`;
 }
 
 export function formatContext(tasks: RelevantTask[]): string {
@@ -171,10 +181,7 @@ export async function* streamAnswer(
 
   try {
     const stream = await model.stream(
-      [
-        new SystemMessage(SYSTEM_PROMPT),
-        new HumanMessage(userMessage),
-      ],
+      [new SystemMessage(SYSTEM_PROMPT), new HumanMessage(userMessage)],
       { signal: args.signal },
     );
 

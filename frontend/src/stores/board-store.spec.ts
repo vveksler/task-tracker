@@ -164,14 +164,18 @@ describe('BoardStore', () => {
 
     it('should optimistically move task to new status before API resolves', async () => {
       useBoardStore.setState({ tasks: [taskA, taskB, taskC] });
-      mockApiFetch.mockResolvedValue(makeTask({ id: 'a', status: 'IN_PROGRESS' }));
-
-      const promise = useBoardStore.getState().reorderTask(
-        'ws-1', 'a', 'IN_PROGRESS', 'c', null,
+      mockApiFetch.mockResolvedValue(
+        makeTask({ id: 'a', status: 'IN_PROGRESS' }),
       );
 
+      const promise = useBoardStore
+        .getState()
+        .reorderTask('ws-1', 'a', 'IN_PROGRESS', 'c', null);
+
       // Before API resolves, task should already be moved optimistically
-      const movedTask = useBoardStore.getState().tasks.find((t) => t.id === 'a');
+      const movedTask = useBoardStore
+        .getState()
+        .tasks.find((t) => t.id === 'a');
       expect(movedTask!.status).toBe('IN_PROGRESS');
 
       await promise;
@@ -186,9 +190,9 @@ describe('BoardStore', () => {
       useBoardStore.setState({ tasks: [taskA, taskB, taskC] });
       mockApiFetch.mockRejectedValue(new Error('Network error'));
 
-      await useBoardStore.getState().reorderTask(
-        'ws-1', 'a', 'IN_PROGRESS', null, null,
-      );
+      await useBoardStore
+        .getState()
+        .reorderTask('ws-1', 'a', 'IN_PROGRESS', null, null);
 
       // Tasks should be rolled back to the original snapshot
       const state = useBoardStore.getState();
@@ -206,9 +210,9 @@ describe('BoardStore', () => {
       };
       mockApiFetch.mockRejectedValue(new ApiError(400, 'Concurrent conflict'));
 
-      await useBoardStore.getState().reorderTask(
-        'ws-1', 'a', 'DONE', null, null,
-      );
+      await useBoardStore
+        .getState()
+        .reorderTask('ws-1', 'a', 'DONE', null, null);
 
       expect(useBoardStore.getState().error).toBe(
         'Move failed: Concurrent conflict',
@@ -223,12 +227,14 @@ describe('BoardStore', () => {
       useBoardStore.setState({ tasks: [t1, t2, moving] });
       mockApiFetch.mockResolvedValue(makeTask());
 
-      await useBoardStore.getState().reorderTask(
-        'ws-1', 'mv', 'TODO', 't1', 't2',
-      );
+      await useBoardStore
+        .getState()
+        .reorderTask('ws-1', 'mv', 'TODO', 't1', 't2');
 
       // Midpoint between t1 (order=2) and t2 (order=6) = 4
-      const movedTask = useBoardStore.getState().tasks.find((t) => t.id === 'mv');
+      const movedTask = useBoardStore
+        .getState()
+        .tasks.find((t) => t.id === 'mv');
       expect(movedTask!.order).toBe(4);
       expect(movedTask!.status).toBe('TODO');
     });

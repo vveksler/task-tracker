@@ -18,8 +18,7 @@ export async function GET(req: NextRequest) {
   const clientId = process.env['GOOGLE_CLIENT_ID'] ?? '';
   const origin = appOrigin(req);
   const callbackUrl =
-    process.env['GOOGLE_CALLBACK_URL'] ??
-    `${origin}/api/auth/google/callback`;
+    process.env['GOOGLE_CALLBACK_URL'] ?? `${origin}/api/auth/google/callback`;
 
   if (!clientId) {
     return NextResponse.redirect(

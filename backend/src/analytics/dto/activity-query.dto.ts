@@ -3,7 +3,10 @@ import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class ActivityQueryDto {
-  @ApiPropertyOptional({ description: 'Number of past days to include', default: 30 })
+  @ApiPropertyOptional({
+    description: 'Number of past days to include',
+    default: 30,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()

@@ -228,7 +228,10 @@ export function extractKeywords(question: string): string[] {
     'navigate',
   ]);
   const tokens: string[] = [];
-  for (const raw of question.replace(/"/g, ' ').replace(/'/g, ' ').split(/\s+/)) {
+  for (const raw of question
+    .replace(/"/g, ' ')
+    .replace(/'/g, ' ')
+    .split(/\s+/)) {
     let t = raw.trim().toLowerCase();
     t = [...t].filter((ch) => /[a-z0-9_-]/i.test(ch)).join('');
     if (t.length < 3 || stop.has(t)) continue;
@@ -256,9 +259,7 @@ export function findMentionedProjects(
       matched.push(p);
       continue;
     }
-    const tokens = name
-      .split(/[^a-z0-9]+/)
-      .filter((t) => t.length >= 4);
+    const tokens = name.split(/[^a-z0-9]+/).filter((t) => t.length >= 4);
     if (tokens.some((t) => q.includes(t))) {
       matched.push(p);
     }
@@ -306,16 +307,17 @@ export async function buildWorkspaceCatalog(
 
   let currentProjectTasks: CatalogTask[] = [];
   if (currentProjectId) {
-    currentProjectTasks = await fetchProjectTasks(workspaceId, currentProjectId);
+    currentProjectTasks = await fetchProjectTasks(
+      workspaceId,
+      currentProjectId,
+    );
   }
 
-  const mentioned = findMentionedProjects(
-    question,
-    projects,
-    currentProjectId,
-  );
-  const mentionedBlocks: { project: { id: string; name: string }; tasks: CatalogTask[] }[] =
-    [];
+  const mentioned = findMentionedProjects(question, projects, currentProjectId);
+  const mentionedBlocks: {
+    project: { id: string; name: string };
+    tasks: CatalogTask[];
+  }[] = [];
   for (const p of mentioned) {
     mentionedBlocks.push({
       project: p,
@@ -356,9 +358,7 @@ export async function buildWorkspaceCatalog(
   lines.push('members:');
   if (members.length > 0) {
     for (const m of members) {
-      lines.push(
-        `- userId=${m.userId} name=${m.name} email=${m.email}`,
-      );
+      lines.push(`- userId=${m.userId} name=${m.name} email=${m.email}`);
     }
   } else {
     lines.push('- (none)');

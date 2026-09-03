@@ -5,16 +5,16 @@ function filterHasProject(filt: Record<string, unknown>): boolean {
   return Boolean(
     (typeof filt['projectId'] === 'string' &&
       (filt['projectId'] as string).trim()) ||
-      (typeof filt['projectName'] === 'string' &&
-        (filt['projectName'] as string).trim()),
+    (typeof filt['projectName'] === 'string' &&
+      (filt['projectName'] as string).trim()),
   );
 }
 
 function filterHasContentScope(filt: Record<string, unknown>): boolean {
   return Boolean(
     filt['titleContains'] ||
-      filt['descriptionContains'] ||
-      filt['assigneeNameContains'],
+    filt['descriptionContains'] ||
+    filt['assigneeNameContains'],
   );
 }
 

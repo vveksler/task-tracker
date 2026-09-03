@@ -1,5 +1,6 @@
 import tseslint from '@typescript-eslint/eslint-plugin';
 import tsparser from '@typescript-eslint/parser';
+import eslintConfigPrettier from 'eslint-config-prettier';
 
 export default [
   {
@@ -28,4 +29,5 @@ export default [
   {
     ignores: ['dist/', 'node_modules/', 'coverage/', '*.js', '*.mjs'],
   },
+  eslintConfigPrettier,
 ];

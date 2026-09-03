@@ -45,7 +45,7 @@ function makeRequest(
       },
     },
     headers: new Headers(),
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
 }
 
@@ -344,11 +344,17 @@ describe('auth middleware', () => {
       expect((res2 as any)._redirectUrl).toBeUndefined();
 
       // Both pass access tokens
-      expect((res1 as any)._requestHeaders.get('x-access-token')).toBe('access-token-1');
-      expect((res2 as any)._requestHeaders.get('x-access-token')).toBe('access-token-2');
+      expect((res1 as any)._requestHeaders.get('x-access-token')).toBe(
+        'access-token-1',
+      );
+      expect((res2 as any)._requestHeaders.get('x-access-token')).toBe(
+        'access-token-2',
+      );
 
       // First request updates cookie, second does not
-      expect((res1 as any)._cookies.get('refresh_token')?.value).toBe('new-token');
+      expect((res1 as any)._cookies.get('refresh_token')?.value).toBe(
+        'new-token',
+      );
       expect((res2 as any)._cookies.size).toBe(0);
     });
   });

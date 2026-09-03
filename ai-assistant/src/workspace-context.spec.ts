@@ -34,9 +34,7 @@ describe('findMentionedProjects', () => {
   });
 
   it('skips the current project', () => {
-    expect(
-      findMentionedProjects('go to Auth', projects, 'p1'),
-    ).toEqual([]);
+    expect(findMentionedProjects('go to Auth', projects, 'p1')).toEqual([]);
   });
 
   it('matches full name substring', () => {

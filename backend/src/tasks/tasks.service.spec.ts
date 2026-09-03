@@ -21,7 +21,12 @@ const withProject = (data: Record<string, unknown>) => ({
 
 describe('TasksService', () => {
   let service: TasksService;
-  let gateway: { emitTaskCreated: jest.Mock; emitTaskUpdated: jest.Mock; emitTaskMoved: jest.Mock; emitTaskDeleted: jest.Mock };
+  let gateway: {
+    emitTaskCreated: jest.Mock;
+    emitTaskUpdated: jest.Mock;
+    emitTaskMoved: jest.Mock;
+    emitTaskDeleted: jest.Mock;
+  };
   let eventEmitter: { emit: jest.Mock };
   let prisma: {
     project: { findUnique: jest.Mock };
@@ -164,8 +169,16 @@ describe('TasksService', () => {
           projectId,
           project: { workspaceId },
         })
-        .mockResolvedValueOnce({ order: 2.0, projectId, status: TaskStatus.IN_PROGRESS })
-        .mockResolvedValueOnce({ order: 4.0, projectId, status: TaskStatus.IN_PROGRESS });
+        .mockResolvedValueOnce({
+          order: 2.0,
+          projectId,
+          status: TaskStatus.IN_PROGRESS,
+        })
+        .mockResolvedValueOnce({
+          order: 4.0,
+          projectId,
+          status: TaskStatus.IN_PROGRESS,
+        });
 
       prisma.task.update.mockResolvedValue(
         withProject({
@@ -277,8 +290,8 @@ describe('TasksService', () => {
 
       prisma.$transaction
         .mockRejectedValueOnce(serializationError)
-        .mockImplementationOnce(
-          async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
+        .mockImplementationOnce(async (fn: (tx: unknown) => Promise<unknown>) =>
+          fn(prisma),
         );
 
       prisma.task.findUnique.mockResolvedValueOnce({

@@ -86,7 +86,9 @@ export class TasksController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Update task fields (title, description, status, assignee)' })
+  @ApiOperation({
+    summary: 'Update task fields (title, description, status, assignee)',
+  })
   update(
     @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
     @Param('id', ParseUUIDPipe) id: string,

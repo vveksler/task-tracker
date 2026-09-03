@@ -37,10 +37,14 @@ describe('AssistantPanel', () => {
 
     await user.click(fab);
     expect(fab).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('dialog', { name: 'AI Assistant' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('dialog', { name: 'AI Assistant' }),
+    ).toBeInTheDocument();
     expect(screen.getByText('Chat body')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Close AI Assistant' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Close AI Assistant' }),
+    );
     expect(fab).toHaveAttribute('aria-expanded', 'false');
   });
 });

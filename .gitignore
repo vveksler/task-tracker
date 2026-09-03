@@ -26,6 +26,10 @@ ai-assistant/.venv/
 !**/.env.example
 helm/task-tracker/values-local.yaml
 helm/task-tracker/values-production.yaml
+*.pem
+*.key
+*.p12
+*.pfx
 
 # Docker / compose local overrides
 docker-compose.override.yml

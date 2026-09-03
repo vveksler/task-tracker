@@ -206,9 +206,7 @@ describe('TaskGateway', () => {
     it('should emit task:created to workspace room', () => {
       gateway.emitTaskCreated(workspaceId, taskPayload);
 
-      expect(mockServer.to).toHaveBeenCalledWith(
-        `workspace:${workspaceId}`,
-      );
+      expect(mockServer.to).toHaveBeenCalledWith(`workspace:${workspaceId}`);
       const emitFn = mockServer.to.mock.results[0]!.value.emit;
       expect(emitFn).toHaveBeenCalledWith(
         'task:created',

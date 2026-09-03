@@ -6,10 +6,7 @@
 import type { AssistantProposal } from '@/types/api';
 
 export type StoredProposalStatus =
-  | 'pending'
-  | 'applied'
-  | 'error'
-  | 'dismissed';
+  'pending' | 'applied' | 'error' | 'dismissed';
 
 export interface StoredProposalCard {
   key: string;
@@ -186,10 +183,7 @@ export function saveAssistantChat(
   }
 }
 
-export function clearAssistantChat(
-  userId: string,
-  workspaceId: string,
-): void {
+export function clearAssistantChat(userId: string, workspaceId: string): void {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.removeItem(

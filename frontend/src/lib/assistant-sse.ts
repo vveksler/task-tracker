@@ -8,9 +8,7 @@ import type { AssistantProposal, AssistantSseEvent } from '@/types/api';
 
 export const ACTIONS_PREFIX = '__ACTIONS__';
 
-type ByteSource =
-  | ReadableStream<Uint8Array>
-  | AsyncIterable<Uint8Array>;
+type ByteSource = ReadableStream<Uint8Array> | AsyncIterable<Uint8Array>;
 
 async function* toByteChunks(
   source: ByteSource,

@@ -20,7 +20,9 @@ const WorkspacesPage = async () => {
 
       {workspaces.length === 0 ? (
         <div className="rounded-lg border-2 border-dashed border-gray-300 py-12 text-center">
-          <p className="text-gray-500">No workspaces yet. Create one to get started.</p>
+          <p className="text-gray-500">
+            No workspaces yet. Create one to get started.
+          </p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

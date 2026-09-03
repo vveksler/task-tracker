@@ -1,11 +1,12 @@
+import type { ReactNode } from 'react';
 import { ProtectedRoute } from '@/components/auth/protected-route';
 import { Navbar } from '@/components/ui/navbar';
 
 interface WorkspacesLayoutProps {
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
-const WorkspacesLayout: React.FC<WorkspacesLayoutProps> = ({ children }) => {
+function WorkspacesLayout({ children }: WorkspacesLayoutProps) {
   return (
     <ProtectedRoute>
       <Navbar />
@@ -14,6 +15,6 @@ const WorkspacesLayout: React.FC<WorkspacesLayoutProps> = ({ children }) => {
       </main>
     </ProtectedRoute>
   );
-};
+}
 
 export default WorkspacesLayout;

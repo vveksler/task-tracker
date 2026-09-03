@@ -9,6 +9,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { fetchWithRetry } from './fetch-with-retry';
 
 @Injectable()
 export class AssistantService {
@@ -28,18 +29,21 @@ export class AssistantService {
   ): Promise<ReadableStream<Uint8Array>> {
     let response: Response;
     try {
-      response = await fetch(`${this.baseUrl}/internal/assistant/ask`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workspace_id: workspaceId,
-          question,
-          ...(currentProjectId
-            ? { current_project_id: currentProjectId }
-            : {}),
-          ...(history && history.length > 0 ? { history } : {}),
-        }),
-      });
+      response = await fetchWithRetry(
+        `${this.baseUrl}/internal/assistant/ask`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            workspace_id: workspaceId,
+            question,
+            ...(currentProjectId
+              ? { current_project_id: currentProjectId }
+              : {}),
+            ...(history && history.length > 0 ? { history } : {}),
+          }),
+        },
+      );
     } catch (err) {
       const cause =
         err instanceof Error ? err.message : String(err ?? 'unknown error');
@@ -73,7 +77,7 @@ export class AssistantService {
   ): Promise<void> {
     let response: Response;
     try {
-      response = await fetch(`${this.baseUrl}/internal/embed`, {
+      response = await fetchWithRetry(`${this.baseUrl}/internal/embed`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

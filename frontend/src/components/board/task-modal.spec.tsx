@@ -27,8 +27,18 @@ const mockWorkspace = {
   ownerId: 'owner-1',
   createdAt: '2026-01-01',
   members: [
-    { userId: 'user-1', role: 'ADMIN' as const, joinedAt: '2026-01-01', user: { id: 'user-1', email: 'admin@test.com', name: 'Admin User' } },
-    { userId: 'user-2', role: 'MEMBER' as const, joinedAt: '2026-01-01', user: { id: 'user-2', email: 'member@test.com', name: 'Member User' } },
+    {
+      userId: 'user-1',
+      role: 'ADMIN' as const,
+      joinedAt: '2026-01-01',
+      user: { id: 'user-1', email: 'admin@test.com', name: 'Admin User' },
+    },
+    {
+      userId: 'user-2',
+      role: 'MEMBER' as const,
+      joinedAt: '2026-01-01',
+      user: { id: 'user-2', email: 'member@test.com', name: 'Member User' },
+    },
   ],
 };
 jest.mock('@/lib/workspace-context', () => ({
@@ -63,18 +73,26 @@ describe('TaskModal', () => {
   // ── Admin user scenarios ──
 
   describe('ADMIN user', () => {
-    beforeEach(() => { mockIsAdmin = true; });
+    beforeEach(() => {
+      mockIsAdmin = true;
+    });
 
     it('should render editable fields for admin', () => {
       render(<TaskModal task={task} workspaceId="ws-1" onClose={onClose} />);
 
-      const titleInput = screen.getByDisplayValue('Test Task') as HTMLInputElement;
+      const titleInput = screen.getByDisplayValue(
+        'Test Task',
+      ) as HTMLInputElement;
       expect(titleInput.disabled).toBe(false);
 
-      const descInput = screen.getByDisplayValue('A test description') as HTMLTextAreaElement;
+      const descInput = screen.getByDisplayValue(
+        'A test description',
+      ) as HTMLTextAreaElement;
       expect(descInput.disabled).toBe(false);
 
-      const statusSelect = screen.getByDisplayValue('To Do') as HTMLSelectElement;
+      const statusSelect = screen.getByDisplayValue(
+        'To Do',
+      ) as HTMLSelectElement;
       expect(statusSelect.disabled).toBe(false);
     });
 
@@ -187,18 +205,26 @@ describe('TaskModal', () => {
   // but cannot delete tasks — only admins can delete.
 
   describe('MEMBER user (non-admin)', () => {
-    beforeEach(() => { mockIsAdmin = false; });
+    beforeEach(() => {
+      mockIsAdmin = false;
+    });
 
     it('should render editable fields for member', () => {
       render(<TaskModal task={task} workspaceId="ws-1" onClose={onClose} />);
 
-      const titleInput = screen.getByDisplayValue('Test Task') as HTMLInputElement;
+      const titleInput = screen.getByDisplayValue(
+        'Test Task',
+      ) as HTMLInputElement;
       expect(titleInput.disabled).toBe(false);
 
-      const descInput = screen.getByDisplayValue('A test description') as HTMLTextAreaElement;
+      const descInput = screen.getByDisplayValue(
+        'A test description',
+      ) as HTMLTextAreaElement;
       expect(descInput.disabled).toBe(false);
 
-      const statusSelect = screen.getByDisplayValue('To Do') as HTMLSelectElement;
+      const statusSelect = screen.getByDisplayValue(
+        'To Do',
+      ) as HTMLSelectElement;
       expect(statusSelect.disabled).toBe(false);
     });
 

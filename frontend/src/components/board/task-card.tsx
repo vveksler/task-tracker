@@ -79,11 +79,13 @@ function TaskCardBody({ task }: { task: Task }) {
  * DragOverlay clone — Trello-like “picked up” card: slight lift + tilt.
  * Must not call useSortable.
  */
-export const TaskCardOverlay: React.FC<{ task: Task }> = ({ task }) => (
-  <div className="task-card-overlay rounded-lg border border-gray-200 bg-white p-3">
-    <TaskCardBody task={task} />
-  </div>
-);
+export function TaskCardOverlay({ task }: { task: Task }) {
+  return (
+    <div className="task-card-overlay rounded-lg border border-gray-200 bg-white p-3">
+      <TaskCardBody task={task} />
+    </div>
+  );
+}
 
 interface TaskCardProps {
   task: Task;
@@ -91,11 +93,7 @@ interface TaskCardProps {
   onStatusChange?: (taskId: string, status: TaskStatus) => void;
 }
 
-export const TaskCard: React.FC<TaskCardProps> = ({
-  task,
-  onClick,
-  onStatusChange,
-}) => {
+export function TaskCard({ task, onClick, onStatusChange }: TaskCardProps) {
   const {
     attributes,
     listeners,
@@ -156,4 +154,4 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       )}
     </div>
   );
-};
+}

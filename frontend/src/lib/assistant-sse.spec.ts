@@ -43,6 +43,16 @@ describe('parseAssistantSse', () => {
     ]);
   });
 
+  it('ignores SSE comment keep-alive frames (no data: line)', async () => {
+    await expect(
+      collect(
+        parseAssistantSse(
+          chunkIterable([': ping\n\n', 'data: Hello\n\n', 'data: [DONE]\n\n']),
+        ),
+      ),
+    ).resolves.toEqual([{ kind: 'token', text: 'Hello' }]);
+  });
+
   it('parses __ACTIONS__ events before [DONE]', async () => {
     const actions = `${ACTIONS_PREFIX}{"proposals":[{"type":"create_project","summary":"New Billing","name":"Billing"}]}`;
     await expect(
@@ -73,7 +83,9 @@ describe('parseAssistantSse', () => {
   it('reassembles tokens split across chunk boundaries', async () => {
     await expect(
       collect(
-        parseAssistantSse(chunkIterable(['data: Hel', 'lo\n\nda', 'ta: !\n\n'])),
+        parseAssistantSse(
+          chunkIterable(['data: Hel', 'lo\n\nda', 'ta: !\n\n']),
+        ),
       ),
     ).resolves.toEqual([
       { kind: 'token', text: 'Hello' },
@@ -102,10 +114,7 @@ describe('parseAssistantSse', () => {
     await expect(
       collect(
         parseAssistantSse(
-          chunkIterable([
-            'data: сделать:\n- DROPPED\n\n',
-            'data: [DONE]\n\n',
-          ]),
+          chunkIterable(['data: сделать:\n- DROPPED\n\n', 'data: [DONE]\n\n']),
         ),
       ),
     ).resolves.toEqual([{ kind: 'token', text: 'сделать:' }]);
@@ -124,7 +133,12 @@ describe('parseActionsPayload', () => {
   it('filters malformed proposals', () => {
     const payload = `${ACTIONS_PREFIX}${JSON.stringify({
       proposals: [
-        { type: 'update_task', summary: 'ok', taskId: 't1', patch: { status: 'TODO' } },
+        {
+          type: 'update_task',
+          summary: 'ok',
+          taskId: 't1',
+          patch: { status: 'TODO' },
+        },
         { type: 'update_task', summary: 'bad' },
         { type: 'create_task', summary: 'ok', projectId: 'p1', title: 'X' },
         {

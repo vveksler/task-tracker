@@ -1,6 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+} from 'react';
 import type { Task, TaskStatus, WorkspaceMember } from '@/types/api';
 import { apiFetch } from '@/lib/api-client';
 import { useBoardStore } from '@/stores/board-store';
@@ -20,11 +27,7 @@ interface TaskModalProps {
   onClose: () => void;
 }
 
-export const TaskModal: React.FC<TaskModalProps> = ({
-  task,
-  workspaceId,
-  onClose,
-}) => {
+export function TaskModal({ task, workspaceId, onClose }: TaskModalProps) {
   const { isAdmin, workspace } = useWorkspace();
   const updateTask = useBoardStore((s) => s.updateTask);
   const removeTask = useBoardStore((s) => s.removeTask);
@@ -32,9 +35,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? '');
   const [status, setStatus] = useState<TaskStatus>(task.status);
-  const [assigneeId, setAssigneeId] = useState<string | null>(
-    task.assigneeId,
-  );
+  const [assigneeId, setAssigneeId] = useState<string | null>(task.assigneeId);
   const [isSaving, setIsSaving] = useState(false);
   const backdropRef = useRef<HTMLDivElement>(null);
 
@@ -62,7 +63,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   }, [onClose]);
 
   const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
+    (e: MouseEvent) => {
       if (e.target === backdropRef.current) onClose();
     },
     [onClose],
@@ -89,7 +90,16 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     } finally {
       setIsSaving(false);
     }
-  }, [workspaceId, task.id, title, description, status, assigneeId, updateTask, onClose]);
+  }, [
+    workspaceId,
+    task.id,
+    title,
+    description,
+    status,
+    assigneeId,
+    updateTask,
+    onClose,
+  ]);
 
   const handleDelete = useCallback(async () => {
     if (!confirm('Delete this task?')) return;
@@ -109,7 +119,12 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       onClick={handleBackdropClick}
       className="task-modal-backdrop"
     >
-      <div className="task-modal-panel" role="dialog" aria-modal="true" aria-label="Task details">
+      <div
+        className="task-modal-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Task details"
+      >
         <div className="flex items-start justify-between gap-3">
           <h2 className="text-lg font-semibold text-gray-900">Task details</h2>
           <button
@@ -218,4 +233,4 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       </div>
     </div>
   );
-};
+}

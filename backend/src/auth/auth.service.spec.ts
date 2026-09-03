@@ -332,15 +332,13 @@ describe('AuthService', () => {
           }),
         }) as unknown as typeof fetch;
 
-      prisma.user.findUnique
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({
-          id: mockUser.id,
-          email: mockUser.email,
-          name: mockUser.name,
-          googleId: null,
-          emailVerifiedAt: null,
-        });
+      prisma.user.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({
+        id: mockUser.id,
+        email: mockUser.email,
+        name: mockUser.name,
+        googleId: null,
+        emailVerifiedAt: null,
+      });
       prisma.user.update.mockResolvedValue({
         id: mockUser.id,
         email: mockUser.email,

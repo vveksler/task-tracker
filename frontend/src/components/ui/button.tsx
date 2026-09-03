@@ -1,6 +1,6 @@
-import { forwardRef } from 'react';
+import type { ComponentProps } from 'react';
 
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface ButtonProps extends ComponentProps<'button'> {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
@@ -11,8 +11,7 @@ const variantClasses: Record<NonNullable<ButtonProps['variant']>, string> = {
     'bg-brand-600 text-white hover:bg-brand-700 focus-visible:ring-brand-500',
   secondary:
     'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 focus-visible:ring-gray-400',
-  danger:
-    'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500',
+  danger: 'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500',
   ghost:
     'bg-transparent text-gray-600 hover:bg-gray-100 focus-visible:ring-gray-400',
 };
@@ -23,19 +22,17 @@ const sizeClasses: Record<NonNullable<ButtonProps['size']>, string> = {
   lg: 'px-6 py-3 text-base',
 };
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  (
-    {
-      variant = 'primary',
-      size = 'md',
-      isLoading = false,
-      disabled,
-      className = '',
-      children,
-      ...rest
-    },
-    ref,
-  ) => (
+export function Button({
+  variant = 'primary',
+  size = 'md',
+  isLoading = false,
+  disabled,
+  className = '',
+  children,
+  ref,
+  ...rest
+}: ButtonProps) {
+  return (
     <button
       ref={ref}
       disabled={disabled || isLoading}
@@ -72,7 +69,5 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       )}
       {children}
     </button>
-  ),
-);
-
-Button.displayName = 'Button';
+  );
+}

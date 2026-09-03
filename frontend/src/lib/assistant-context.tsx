@@ -53,9 +53,7 @@ interface AssistantProviderProps {
   children: ReactNode;
 }
 
-export const AssistantProvider: React.FC<AssistantProviderProps> = ({
-  children,
-}) => {
+export function AssistantProvider({ children }: AssistantProviderProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [boardScope, setBoardScopeState] = useState<BoardScope | null>(null);
   const listenersRef = useRef(new Set<AppliedListener>());
@@ -109,4 +107,4 @@ export const AssistantProvider: React.FC<AssistantProviderProps> = ({
       {children}
     </AssistantContext.Provider>
   );
-};
+}

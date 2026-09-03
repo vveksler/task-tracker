@@ -18,18 +18,16 @@ import {
 } from 'class-validator';
 
 @ValidatorConstraint({ name: 'atLeastOneFilterField', async: false })
-export class AtLeastOneFilterFieldConstraint
-  implements ValidatorConstraintInterface
-{
+export class AtLeastOneFilterFieldConstraint implements ValidatorConstraintInterface {
   validate(filter: BulkTasksFilterDto | undefined): boolean {
     if (!filter || typeof filter !== 'object') return false;
     return Boolean(
       filter.titleContains?.trim() ||
-        filter.descriptionContains?.trim() ||
-        filter.assigneeNameContains?.trim() ||
-        (filter.statusIn && filter.statusIn.length > 0) ||
-        filter.projectId?.trim() ||
-        filter.projectName?.trim(),
+      filter.descriptionContains?.trim() ||
+      filter.assigneeNameContains?.trim() ||
+      (filter.statusIn && filter.statusIn.length > 0) ||
+      filter.projectId?.trim() ||
+      filter.projectName?.trim(),
     );
   }
 

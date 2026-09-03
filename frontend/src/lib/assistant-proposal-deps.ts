@@ -25,9 +25,7 @@ export type ProposalCardLike = {
 
 function createProjectCards(all: ProposalCardLike[]): ProposalCardLike[] {
   return all.filter(
-    (c) =>
-      c.proposal.type === 'create_project' &&
-      c.status !== 'dismissed',
+    (c) => c.proposal.type === 'create_project' && c.status !== 'dismissed',
   );
 }
 
@@ -108,8 +106,6 @@ export function getProposalBlockReason(
 
   const first = required[0]!;
   const name =
-    first.proposal.type === 'create_project'
-      ? first.proposal.name
-      : 'project';
+    first.proposal.type === 'create_project' ? first.proposal.name : 'project';
   return `Apply “create project '${name}'” first`;
 }

@@ -15,9 +15,7 @@ interface AssistantPanelProps {
  * within the same workspace. Hidden on the dedicated /assistant page
  * to avoid a duplicate chat UI.
  */
-export const AssistantPanel: React.FC<AssistantPanelProps> = ({
-  workspaceId,
-}) => {
+export function AssistantPanel({ workspaceId }: AssistantPanelProps) {
   const pathname = usePathname();
   const { isOpen, close, toggle } = useAssistant();
   const isAssistantPage = pathname?.endsWith('/assistant') ?? false;
@@ -50,7 +48,9 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
         title="AI Assistant"
         className={
           'assistant-fab transition hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 ' +
-          (isOpen ? 'pointer-events-none opacity-0 sm:pointer-events-auto sm:opacity-100' : '')
+          (isOpen
+            ? 'pointer-events-none opacity-0 sm:pointer-events-auto sm:opacity-100'
+            : '')
         }
       >
         <ChatIcon />
@@ -72,9 +72,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
         aria-label="AI Assistant"
         className={
           'assistant-panel ' +
-          (isOpen
-            ? 'translate-x-0'
-            : 'pointer-events-none translate-x-full')
+          (isOpen ? 'translate-x-0' : 'pointer-events-none translate-x-full')
         }
       >
         <AssistantChat
@@ -85,7 +83,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
       </aside>
     </>
   );
-};
+}
 
 function ChatIcon() {
   return (

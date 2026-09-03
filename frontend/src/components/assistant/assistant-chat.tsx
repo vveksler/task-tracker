@@ -14,13 +14,11 @@ import {
   loadAssistantChat,
   saveAssistantChat,
 } from '@/lib/assistant-chat-storage';
-import {
-  getProposalBlockReason,
-  isUuid,
-} from '@/lib/assistant-proposal-deps';
+import { getProposalBlockReason, isUuid } from '@/lib/assistant-proposal-deps';
 import type { AssistantProposal, Project } from '@/types/api';
 
-type ProposalStatus = 'pending' | 'applying' | 'applied' | 'error' | 'dismissed';
+type ProposalStatus =
+  'pending' | 'applying' | 'applied' | 'error' | 'dismissed';
 
 interface ProposalCard {
   key: string;
@@ -132,12 +130,12 @@ function bindMoveTargetToProject(
   return proposal;
 }
 
-export const AssistantChat: React.FC<AssistantChatProps> = ({
+export function AssistantChat({
   workspaceId,
   variant = 'page',
   onClose,
   onApplied,
-}) => {
+}: AssistantChatProps) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useParams<{ projectId?: string }>();
@@ -250,10 +248,13 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
         let createdProject: { id: string; name: string } | null = null;
 
         if (proposal.type === 'update_task') {
-          await apiFetch(`/workspaces/${workspaceId}/tasks/${proposal.taskId}`, {
-            method: 'PATCH',
-            body: JSON.stringify(proposal.patch),
-          });
+          await apiFetch(
+            `/workspaces/${workspaceId}/tasks/${proposal.taskId}`,
+            {
+              method: 'PATCH',
+              body: JSON.stringify(proposal.patch),
+            },
+          );
         } else if (proposal.type === 'create_task') {
           if (!isUuid(proposal.projectId)) {
             throw new Error(
@@ -352,7 +353,9 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
           const toMove =
             statusFilter && statusFilter.length > 0
               ? sourceTasks.filter((t) =>
-                  statusFilter.includes(t.status as (typeof statusFilter)[number]),
+                  statusFilter.includes(
+                    t.status as (typeof statusFilter)[number],
+                  ),
                 )
               : sourceTasks;
           for (const task of toMove) {
@@ -383,7 +386,9 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
           resultNote = `Moved ${toMove.length} task(s)`;
         } else {
           const _exhaustive: never = proposal;
-          throw new Error(`Unknown proposal type: ${JSON.stringify(_exhaustive)}`);
+          throw new Error(
+            `Unknown proposal type: ${JSON.stringify(_exhaustive)}`,
+          );
         }
 
         setMessages((prev) =>
@@ -603,11 +608,16 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
         {messages.length === 0 && (
           <div className="space-y-2 text-sm text-gray-500">
-            <p>Ask questions or request changes. Nothing is saved until you Apply.</p>
+            <p>
+              Ask questions or request changes. Nothing is saved until you
+              Apply.
+            </p>
             <ul className="list-inside list-disc space-y-1 text-xs text-gray-400">
               <li>&ldquo;What tasks are still in review?&rdquo;</li>
               <li>&ldquo;Move all auth tasks to In Progress&rdquo;</li>
-              <li>&ldquo;Delete all tasks in project Auth &amp; Security&rdquo;</li>
+              <li>
+                &ldquo;Delete all tasks in project Auth &amp; Security&rdquo;
+              </li>
               <li>&ldquo;Open project Payments&rdquo;</li>
             </ul>
           </div>
@@ -649,69 +659,72 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
                           ? getProposalBlockReason(card, msg.proposals ?? [])
                           : null;
                       return (
-                      <li
-                        key={card.key}
-                        className="rounded-md border border-gray-200 bg-white px-3 py-2"
-                      >
-                        <p className="text-sm text-gray-800">
-                          {card.proposal.summary}
-                        </p>
-                        <p className="mt-0.5 text-xs capitalize text-gray-500">
-                          {formatProposalType(card.proposal.type)}
-                        </p>
-                        {blockReason && (
-                          <p className="mt-1 text-xs text-amber-700">
-                            {blockReason}
+                        <li
+                          key={card.key}
+                          className="rounded-md border border-gray-200 bg-white px-3 py-2"
+                        >
+                          <p className="text-sm text-gray-800">
+                            {card.proposal.summary}
                           </p>
-                        )}
-                        {card.status === 'error' && card.error && (
-                          <p className="mt-1 text-xs text-red-600" role="alert">
-                            {card.error}
+                          <p className="mt-0.5 text-xs capitalize text-gray-500">
+                            {formatProposalType(card.proposal.type)}
                           </p>
-                        )}
-                        {card.status === 'applied' ? (
-                          <p className="mt-2 text-xs font-medium text-green-700">
-                            {card.resultNote
-                              ? `Applied — ${card.resultNote}`
-                              : 'Applied'}
-                          </p>
-                        ) : (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              isLoading={card.status === 'applying'}
-                              disabled={
-                                card.status === 'applying' || !!blockReason
-                              }
-                              onClick={() =>
-                                void applyProposal(
-                                  msg.id,
-                                  card.key,
-                                  card.proposal,
-                                )
-                              }
-                              className="min-w-[4.5rem] flex-1 sm:flex-none"
+                          {blockReason && (
+                            <p className="mt-1 text-xs text-amber-700">
+                              {blockReason}
+                            </p>
+                          )}
+                          {card.status === 'error' && card.error && (
+                            <p
+                              className="mt-1 text-xs text-red-600"
+                              role="alert"
                             >
-                              {card.proposal.type === 'navigate_to_project'
-                                ? 'Go'
-                                : 'Apply'}
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              disabled={card.status === 'applying'}
-                              onClick={() =>
-                                dismissProposal(msg.id, card.key)
-                              }
-                              className="min-w-[4.5rem] flex-1 sm:flex-none"
-                            >
-                              Dismiss
-                            </Button>
-                          </div>
-                        )}
-                      </li>
+                              {card.error}
+                            </p>
+                          )}
+                          {card.status === 'applied' ? (
+                            <p className="mt-2 text-xs font-medium text-green-700">
+                              {card.resultNote
+                                ? `Applied — ${card.resultNote}`
+                                : 'Applied'}
+                            </p>
+                          ) : (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                isLoading={card.status === 'applying'}
+                                disabled={
+                                  card.status === 'applying' || !!blockReason
+                                }
+                                onClick={() =>
+                                  void applyProposal(
+                                    msg.id,
+                                    card.key,
+                                    card.proposal,
+                                  )
+                                }
+                                className="min-w-[4.5rem] flex-1 sm:flex-none"
+                              >
+                                {card.proposal.type === 'navigate_to_project'
+                                  ? 'Go'
+                                  : 'Apply'}
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                disabled={card.status === 'applying'}
+                                onClick={() =>
+                                  dismissProposal(msg.id, card.key)
+                                }
+                                className="min-w-[4.5rem] flex-1 sm:flex-none"
+                              >
+                                Dismiss
+                              </Button>
+                            </div>
+                          )}
+                        </li>
                       );
                     })}
                 </ul>
@@ -792,7 +805,12 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
 
           <div className="flex shrink-0 gap-2 self-end sm:self-auto">
             {isStreaming ? (
-              <Button type="button" variant="secondary" size="sm" onClick={stop}>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={stop}
+              >
                 Stop
               </Button>
             ) : (
@@ -881,7 +899,7 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({
       {chatBody}
     </div>
   );
-};
+}
 
 function CloseIcon() {
   return (

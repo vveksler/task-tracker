@@ -55,10 +55,7 @@ jest.mock('@/lib/assistant-sse', () => ({
 }));
 
 import { AssistantChat } from '@/components/assistant/assistant-chat';
-import {
-  AssistantProvider,
-  useAssistant,
-} from '@/lib/assistant-context';
+import { AssistantProvider, useAssistant } from '@/lib/assistant-context';
 
 function BoardScopeSetter({
   projectId,
@@ -133,7 +130,9 @@ describe('AssistantChat proposals', () => {
   it('shows bulk-oriented empty-state examples on page variant', () => {
     render(<AssistantChat workspaceId="ws-1" variant="page" />);
 
-    expect(screen.getByRole('heading', { name: 'AI Assistant' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'AI Assistant' }),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(/Move all auth tasks to In Progress/i),
     ).toBeInTheDocument();
@@ -179,9 +178,7 @@ describe('AssistantChat proposals', () => {
       </AssistantProvider>,
     );
 
-    expect(
-      await screen.findByText(/Scoped to/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/Scoped to/)).toBeInTheDocument();
     expect(screen.getByText('Infrastructure')).toBeInTheDocument();
 
     await user.type(
@@ -382,29 +379,33 @@ describe('AssistantChat proposals', () => {
         targetProjectId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
       },
     ];
-    mockApiFetch.mockImplementation((url: string, init?: { method?: string }) => {
-      if (
-        typeof url === 'string' &&
-        url.includes('/tasks?projectId=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa') &&
-        !init?.method
-      ) {
-        return Promise.resolve([
-          {
-            title: 'Postgres backup',
-            description: 'Weekly drill',
-            status: 'DONE',
-            assigneeId: null,
-          },
-          {
-            title: 'Redis TTL',
-            description: null,
-            status: 'TODO',
-            assigneeId: 'user-1',
-          },
-        ]);
-      }
-      return Promise.resolve({ id: 'created' });
-    });
+    mockApiFetch.mockImplementation(
+      (url: string, init?: { method?: string }) => {
+        if (
+          typeof url === 'string' &&
+          url.includes(
+            '/tasks?projectId=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          ) &&
+          !init?.method
+        ) {
+          return Promise.resolve([
+            {
+              title: 'Postgres backup',
+              description: 'Weekly drill',
+              status: 'DONE',
+              assigneeId: null,
+            },
+            {
+              title: 'Redis TTL',
+              description: null,
+              status: 'TODO',
+              assigneeId: 'user-1',
+            },
+          ]);
+        }
+        return Promise.resolve({ id: 'created' });
+      },
+    );
 
     const user = userEvent.setup();
     render(<AssistantChat workspaceId="ws-1" />);
@@ -615,7 +616,9 @@ describe('AssistantChat proposals', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Send' }));
 
-    const applyButtons = await screen.findAllByRole('button', { name: 'Apply' });
+    const applyButtons = await screen.findAllByRole('button', {
+      name: 'Apply',
+    });
     await user.click(applyButtons[0]!);
 
     await waitFor(() => {
@@ -707,7 +710,9 @@ describe('AssistantChat proposals', () => {
       await screen.findByText(/Apply “create project 'Payments2'” first/),
     ).toBeInTheDocument();
 
-    const applyButtons = await screen.findAllByRole('button', { name: 'Apply' });
+    const applyButtons = await screen.findAllByRole('button', {
+      name: 'Apply',
+    });
     expect(applyButtons[1]).toBeDisabled();
 
     await user.click(applyButtons[0]!);

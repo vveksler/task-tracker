@@ -40,10 +40,7 @@ export class ApiError extends Error {
  * Read JWT `exp` without verifying the signature (client-side gate only).
  * Refresh ~30s before expiry to avoid the 401 → refresh → retry round-trip.
  */
-export function isAccessTokenFresh(
-  token: string,
-  skewMs = 30_000,
-): boolean {
+export function isAccessTokenFresh(token: string, skewMs = 30_000): boolean {
   try {
     const payloadPart = token.split('.')[1];
     if (!payloadPart) return false;

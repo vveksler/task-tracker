@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type FormEvent } from 'react';
 import {
   SortableContext,
   verticalListSortingStrategy,
@@ -28,7 +28,7 @@ interface BoardColumnProps {
   onStatusChange?: (taskId: string, status: TaskStatus) => void;
 }
 
-export const BoardColumn: React.FC<BoardColumnProps> = ({
+export function BoardColumn({
   status,
   tasks,
   workspaceId,
@@ -36,7 +36,7 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
   isDropTarget = false,
   onTaskClick,
   onStatusChange,
-}) => {
+}: BoardColumnProps) {
   const { label, color } = COLUMN_META[status];
   const createTask = useBoardStore((s) => s.createTask);
   const [showAdd, setShowAdd] = useState(false);
@@ -48,7 +48,7 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
   });
 
   const handleAdd = useCallback(
-    async (e: React.FormEvent) => {
+    async (e: FormEvent) => {
       e.preventDefault();
       if (!newTitle.trim()) return;
       await createTask(workspaceId, projectId, newTitle.trim(), status);
@@ -84,7 +84,9 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
           strategy={verticalListSortingStrategy}
         >
           {sortedTasks.length === 0 && !showAdd && (
-            <p className="py-8 text-center text-xs text-gray-400">No tasks yet</p>
+            <p className="py-8 text-center text-xs text-gray-400">
+              No tasks yet
+            </p>
           )}
           {sortedTasks.map((task) => (
             <TaskCard
@@ -143,4 +145,4 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
       </div>
     </div>
   );
-};
+}

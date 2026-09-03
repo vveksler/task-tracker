@@ -16,7 +16,7 @@ interface AssigneeBarChartProps {
   data: AssigneeLoad[];
 }
 
-export const AssigneeBarChart: React.FC<AssigneeBarChartProps> = ({ data }) => {
+export function AssigneeBarChart({ data }: AssigneeBarChartProps) {
   if (data.length === 0) {
     return <p className="py-8 text-center text-sm text-gray-400">No data</p>;
   }
@@ -49,4 +49,4 @@ export const AssigneeBarChart: React.FC<AssigneeBarChartProps> = ({ data }) => {
       </BarChart>
     </ResponsiveContainer>
   );
-};
+}

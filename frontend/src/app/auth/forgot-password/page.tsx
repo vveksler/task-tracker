@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { ApiError } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,7 @@ export default function ForgotPasswordPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
+    async (e: FormEvent) => {
       e.preventDefault();
       setError(null);
       setIsSubmitting(true);
@@ -26,7 +26,9 @@ export default function ForgotPasswordPage() {
         });
 
         if (!res.ok) {
-          const body = await res.json().catch(() => ({ message: res.statusText }));
+          const body = await res
+            .json()
+            .catch(() => ({ message: res.statusText }));
           throw new ApiError(
             res.status,
             (body as { message?: string }).message ?? res.statusText,
@@ -55,7 +57,8 @@ export default function ForgotPasswordPage() {
             Reset your password
           </h1>
           <p className="mt-2 text-sm text-gray-600">
-            Enter your email and we&apos;ll send a reset link if an account exists.
+            Enter your email and we&apos;ll send a reset link if an account
+            exists.
           </p>
         </div>
 

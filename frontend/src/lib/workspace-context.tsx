@@ -26,7 +26,8 @@ const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
 export const useWorkspace = (): WorkspaceContextValue => {
   const ctx = useContext(WorkspaceContext);
-  if (!ctx) throw new Error('useWorkspace must be used within WorkspaceProvider');
+  if (!ctx)
+    throw new Error('useWorkspace must be used within WorkspaceProvider');
   return ctx;
 };
 
@@ -37,13 +38,15 @@ interface WorkspaceProviderProps {
   children: ReactNode;
 }
 
-export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({
+export function WorkspaceProvider({
   workspaceId,
   initialData,
   children,
-}) => {
+}: WorkspaceProviderProps) {
   const { user } = useAuth();
-  const [workspace, setWorkspace] = useState<Workspace | null>(initialData ?? null);
+  const [workspace, setWorkspace] = useState<Workspace | null>(
+    initialData ?? null,
+  );
   const [isLoading, setIsLoading] = useState(!initialData);
   const [version, setVersion] = useState(0);
 
@@ -60,7 +63,9 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({
       .finally(() => {
         if (!cancelled) setIsLoading(false);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [workspaceId, version]);
 
   const refetch = useCallback(() => setVersion((v) => v + 1), []);
@@ -79,4 +84,4 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({
       {children}
     </WorkspaceContext.Provider>
   );
-};
+}

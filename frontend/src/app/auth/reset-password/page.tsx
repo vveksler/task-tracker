@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useState } from 'react';
+import { Suspense, useCallback, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ApiError } from '@/lib/api-client';
@@ -18,7 +18,7 @@ function ResetPasswordForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
+    async (e: FormEvent) => {
       e.preventDefault();
       setError(null);
 
@@ -42,7 +42,9 @@ function ResetPasswordForm() {
         });
 
         if (!res.ok) {
-          const body = await res.json().catch(() => ({ message: res.statusText }));
+          const body = await res
+            .json()
+            .catch(() => ({ message: res.statusText }));
           throw new ApiError(
             res.status,
             (body as { message?: string }).message ?? res.statusText,

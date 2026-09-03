@@ -6,7 +6,13 @@
  * since the page itself is a Server Component that just passes props.
  */
 
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Workspace, Project } from '@/types/api';
 
@@ -165,10 +171,9 @@ describe('WorkspaceDetailContent', () => {
       fireEvent.click(header.getByText('Delete'));
 
       await waitFor(() => {
-        expect(mockApiFetch).toHaveBeenCalledWith(
-          '/workspaces/ws-1',
-          { method: 'DELETE' },
-        );
+        expect(mockApiFetch).toHaveBeenCalledWith('/workspaces/ws-1', {
+          method: 'DELETE',
+        });
       });
 
       expect(mockPush).toHaveBeenCalledWith('/workspaces');
@@ -198,7 +203,9 @@ describe('WorkspaceDetailContent', () => {
 
       renderContent();
 
-      const alphaCard = screen.getByText('Project Alpha').closest('.group') as HTMLElement;
+      const alphaCard = screen
+        .getByText('Project Alpha')
+        .closest('.group') as HTMLElement;
       const deleteBtn = within(alphaCard).getByText('Delete');
       fireEvent.click(deleteBtn);
 
@@ -241,7 +248,9 @@ describe('WorkspaceDetailContent', () => {
     it('should still show project edit/delete for admin', () => {
       renderContent();
 
-      const alphaCard = screen.getByText('Project Alpha').closest('.group') as HTMLElement;
+      const alphaCard = screen
+        .getByText('Project Alpha')
+        .closest('.group') as HTMLElement;
       expect(within(alphaCard).getByText('Edit')).toBeTruthy();
       expect(within(alphaCard).getByText('Delete')).toBeTruthy();
     });
@@ -265,7 +274,9 @@ describe('WorkspaceDetailContent', () => {
       renderContent();
 
       const heading = screen.getByText('Test Workspace');
-      const headerRow = heading.closest('.flex.items-center.gap-3') as HTMLElement;
+      const headerRow = heading.closest(
+        '.flex.items-center.gap-3',
+      ) as HTMLElement;
       const buttons = headerRow?.querySelectorAll('button');
       expect(buttons?.length ?? 0).toBe(0);
     });
@@ -273,7 +284,9 @@ describe('WorkspaceDetailContent', () => {
     it('should NOT show edit/delete on project cards', () => {
       renderContent();
 
-      const alphaCard = screen.getByText('Project Alpha').closest('.group') as HTMLElement;
+      const alphaCard = screen
+        .getByText('Project Alpha')
+        .closest('.group') as HTMLElement;
       const hiddenBtns = alphaCard?.querySelectorAll('button');
       expect(hiddenBtns?.length ?? 0).toBe(0);
     });

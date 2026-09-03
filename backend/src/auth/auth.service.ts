@@ -424,7 +424,10 @@ export class AuthService {
     return { message };
   }
 
-  async resetPassword(rawToken: string, password: string): Promise<{ message: string }> {
+  async resetPassword(
+    rawToken: string,
+    password: string,
+  ): Promise<{ message: string }> {
     const tokenHash = this.hashToken(rawToken);
 
     const stored = await this.prisma.passwordResetToken.findUnique({
@@ -462,7 +465,9 @@ export class AuthService {
       }),
     ]);
 
-    return { message: 'Password updated. You can sign in with your new password.' };
+    return {
+      message: 'Password updated. You can sign in with your new password.',
+    };
   }
 
   /**
@@ -596,7 +601,11 @@ export class AuthService {
       });
     }
 
-    if (!replacement || replacement.revokedAt || replacement.expiresAt < new Date()) {
+    if (
+      !replacement ||
+      replacement.revokedAt ||
+      replacement.expiresAt < new Date()
+    ) {
       throw new UnauthorizedException('Token has been revoked');
     }
 
@@ -640,7 +649,9 @@ export class AuthService {
       { sub: userId, email },
       {
         secret: this.config.get<string>('jwt.accessSecret'),
-        expiresIn: this.config.get<string>('jwt.accessExpiresIn') as `${number}m`,
+        expiresIn: this.config.get<string>(
+          'jwt.accessExpiresIn',
+        ) as `${number}m`,
       },
     );
 

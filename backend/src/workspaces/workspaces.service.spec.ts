@@ -38,7 +38,9 @@ describe('WorkspacesService', () => {
       user: {
         findUnique: jest.fn(),
       },
-      $transaction: jest.fn().mockImplementation((ops: unknown[]) => Promise.all(ops)),
+      $transaction: jest
+        .fn()
+        .mockImplementation((ops: unknown[]) => Promise.all(ops)),
     };
 
     const module: TestingModule = await Test.createTestingModule({

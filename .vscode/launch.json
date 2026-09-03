@@ -2,20 +2,42 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Next.js: debug frontend",
+      "name": "Next.js: start dev",
       "type": "node",
       "request": "launch",
       "cwd": "${workspaceFolder}/frontend",
       "runtimeExecutable": "${workspaceFolder}/.vscode/run-npm.sh",
       "runtimeArgs": ["run", "dev"],
-      "env": { "NODE_OPTIONS": "--inspect" },
+      "env": {
+        "NODE_OPTIONS": "--inspect"
+      },
+      "autoAttachChildProcesses": true,
+      "sourceMaps": true,
+      "webRoot": "${workspaceFolder}/frontend",
+      "sourceMapPathOverrides": {
+        "webpack://_N_E/*": "${webRoot}/*",
+        "webpack://./src/*": "${webRoot}/src/*",
+        "turbopack://[project]/*": "${webRoot}/*"
+      },
       "skipFiles": ["<node_internals>/**", "**/node_modules/**"],
-      "console": "integratedTerminal",
-      "serverReadyAction": {
-        "pattern": "- Local:.+(https?://.+)",
-        "uriFormat": "%s",
-        "action": "openExternally"
-      }
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Next.js: attach router (9230)",
+      "type": "node",
+      "request": "attach",
+      "port": 9230,
+      "timeout": 60000,
+      "restart": true,
+      "cwd": "${workspaceFolder}/frontend",
+      "webRoot": "${workspaceFolder}/frontend",
+      "sourceMaps": true,
+      "sourceMapPathOverrides": {
+        "webpack://_N_E/*": "${webRoot}/*",
+        "webpack://./src/*": "${webRoot}/src/*",
+        "turbopack://[project]/*": "${webRoot}/*"
+      },
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**"]
     },
     {
       "name": "NestJS: debug backend",
@@ -34,7 +56,6 @@
       "cwd": "${workspaceFolder}/ai-assistant",
       "runtimeExecutable": "${workspaceFolder}/.vscode/run-npm.sh",
       "runtimeArgs": ["run", "dev"],
-      "env": { "NODE_OPTIONS": "--inspect" },
       "skipFiles": ["<node_internals>/**", "**/node_modules/**"],
       "console": "integratedTerminal"
     },
@@ -61,16 +82,28 @@
   ],
   "compounds": [
     {
+      "name": "Next.js: debug frontend",
+      "configurations": ["Next.js: start dev", "Next.js: attach router (9230)"],
+      "stopAll": true
+    },
+    {
       "name": "Full Stack: frontend + backend",
-      "configurations": ["Next.js: debug frontend", "NestJS: debug backend"]
+      "configurations": [
+        "Next.js: start dev",
+        "Next.js: attach router (9230)",
+        "NestJS: debug backend"
+      ],
+      "stopAll": true
     },
     {
       "name": "Full Stack: frontend + backend + AI",
       "configurations": [
-        "Next.js: debug frontend",
+        "Next.js: start dev",
+        "Next.js: attach router (9230)",
         "NestJS: debug backend",
         "AI Assistant: debug"
-      ]
+      ],
+      "stopAll": true
     }
   ]
 }

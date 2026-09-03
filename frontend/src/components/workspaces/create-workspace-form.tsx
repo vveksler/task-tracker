@@ -1,19 +1,19 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-export const CreateWorkspaceForm: React.FC = () => {
+export function CreateWorkspaceForm() {
   const router = useRouter();
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
   const handleCreate = useCallback(
-    async (e: React.FormEvent) => {
+    async (e: FormEvent) => {
       e.preventDefault();
       if (!newName.trim()) return;
       setIsCreating(true);
@@ -64,4 +64,4 @@ export const CreateWorkspaceForm: React.FC = () => {
       </Button>
     </form>
   );
-};
+}
