@@ -142,6 +142,12 @@ describe('parseActionsPayload', () => {
         { type: 'update_task', summary: 'bad' },
         { type: 'create_task', summary: 'ok', projectId: 'p1', title: 'X' },
         {
+          type: 'create_task',
+          summary: 'name only',
+          projectName: 'Prep',
+          title: 'Y',
+        },
+        {
           type: 'bulk_update_tasks',
           summary: 'bulk',
           filter: { titleContains: 'auth' },
@@ -157,6 +163,11 @@ describe('parseActionsPayload', () => {
           type: 'navigate_to_project',
           summary: 'go',
           projectId: 'p1',
+        },
+        {
+          type: 'navigate_to_project',
+          summary: 'go new',
+          projectName: 'Prep',
         },
         {
           type: 'delete_project',
@@ -200,6 +211,12 @@ describe('parseActionsPayload', () => {
         title: 'X',
       },
       {
+        type: 'create_task',
+        summary: 'name only',
+        projectName: 'Prep',
+        title: 'Y',
+      },
+      {
         type: 'bulk_update_tasks',
         summary: 'bulk',
         filter: { titleContains: 'auth' },
@@ -212,6 +229,7 @@ describe('parseActionsPayload', () => {
         filter: { projectId: 'p1' },
       },
       { type: 'navigate_to_project', summary: 'go', projectId: 'p1' },
+      { type: 'navigate_to_project', summary: 'go new', projectName: 'Prep' },
       { type: 'delete_project', summary: 'del', projectId: 'p1' },
       {
         type: 'move_tasks_to_project',

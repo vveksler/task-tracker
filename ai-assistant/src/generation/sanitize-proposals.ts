@@ -36,8 +36,28 @@ function sanitizeTaskFilter(filt: unknown): Record<string, unknown> | null {
   return safeFilter;
 }
 
-/** Keep only allowlisted, well-shaped proposals (max 5). */
+/** Cap on create_task (or other non-setup cards) in one reply. */
 export const MAX_PROPOSALS = 5;
+
+/**
+ * create_project + navigate_to_project are extra slots so a "new project
+ * with up to 5 tasks, then open it" pack fits in one reply (max 7 cards).
+ * Raising the global cap to 7 would also allow 7 unrelated updates.
+ */
+export const SETUP_PACK_EXTRA = 2;
+
+function rawType(item: unknown): string | undefined {
+  if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+    return undefined;
+  }
+  const t = (item as { type?: unknown }).type;
+  return typeof t === 'string' ? t : undefined;
+}
+
+function proposalCap(items: unknown[]): number {
+  const hasCreateProject = items.some((i) => rawType(i) === 'create_project');
+  return MAX_PROPOSALS + (hasCreateProject ? SETUP_PACK_EXTRA : 0);
+}
 
 export function sanitizeProposals(raw: unknown): Proposal[] {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
@@ -47,20 +67,20 @@ export function sanitizeProposals(raw: unknown): Proposal[] {
   if (!Array.isArray(proposals)) return [];
 
   // Oversized create bursts: refuse entirely (do not silently keep first 5).
-  let createBurst = 0;
+  // create_project does not share the create_task budget — 1 project + 5
+  // tasks is the intended "setup pack", not an overflow.
+  let createTasks = 0;
+  let createProjects = 0;
   for (const item of proposals) {
-    if (typeof item !== 'object' || item === null || Array.isArray(item)) {
-      continue;
-    }
-    const t = (item as { type?: unknown }).type;
-    if (t === 'create_task' || t === 'create_project') {
-      createBurst += 1;
-    }
+    const t = rawType(item);
+    if (t === 'create_task') createTasks += 1;
+    if (t === 'create_project') createProjects += 1;
   }
-  if (createBurst > MAX_PROPOSALS) {
+  if (createTasks > MAX_PROPOSALS || createProjects > MAX_PROPOSALS) {
     return [];
   }
 
+  const cap = proposalCap(proposals);
   const cleaned: Proposal[] = [];
   for (const item of proposals) {
     if (typeof item !== 'object' || item === null || Array.isArray(item)) {
@@ -217,12 +237,19 @@ export function sanitizeProposals(raw: unknown): Proposal[] {
       });
     } else if (ptype === 'navigate_to_project') {
       const projectId = obj['projectId'];
-      if (typeof projectId !== 'string' || !projectId.trim()) continue;
-      cleaned.push({
+      const projectName = obj['projectName'];
+      const hasId = typeof projectId === 'string' && Boolean(projectId.trim());
+      const hasName =
+        typeof projectName === 'string' && Boolean(projectName.trim());
+      // Name-only is valid when create_project in the same batch binds a UUID.
+      if (!hasId && !hasName) continue;
+      const proposal: Proposal = {
         type: 'navigate_to_project',
         summary: summary.trim(),
-        projectId: projectId.trim(),
-      });
+      };
+      if (hasId) proposal['projectId'] = (projectId as string).trim();
+      if (hasName) proposal['projectName'] = (projectName as string).trim();
+      cleaned.push(proposal);
     } else if (ptype === 'move_tasks_to_project') {
       const targetRaw = obj['targetProjectId'];
       const targetNameRaw = obj['targetProjectName'];
@@ -265,10 +292,50 @@ export function sanitizeProposals(raw: unknown): Proposal[] {
       cleaned.push(proposal);
     }
 
-    if (cleaned.length >= MAX_PROPOSALS) break;
+    if (cleaned.length >= cap) break;
   }
 
-  return repairCreatePlusDeleteAsMove(cleaned);
+  return ensureNavigateForNewProject(
+    repairCreatePlusDeleteAsMove(cleaned),
+    cap,
+  );
+}
+
+function namesMatch(a: unknown, b: string): boolean {
+  return typeof a === 'string' && a.trim().toLowerCase() === b.toLowerCase();
+}
+
+/**
+ * After create_project, the user should see a Go card in the same reply —
+ * don't wait for a second chat turn. Insert navigate by name when missing.
+ */
+export function ensureNavigateForNewProject(
+  proposals: Proposal[],
+  cap: number,
+): Proposal[] {
+  const creates = proposals.filter((p) => p['type'] === 'create_project');
+  if (creates.length !== 1) return proposals;
+  const rawName = creates[0]!['name'];
+  if (typeof rawName !== 'string' || !rawName.trim()) return proposals;
+  const name = rawName.trim();
+
+  const hasNav = proposals.some((p) => {
+    if (p['type'] !== 'navigate_to_project') return false;
+    return (
+      namesMatch(p['projectName'], name) || namesMatch(p['projectId'], name)
+    );
+  });
+  if (hasNav) return proposals;
+  if (proposals.length >= cap) return proposals;
+
+  const nav: Proposal = {
+    type: 'navigate_to_project',
+    summary: `Open ${name}`,
+    projectName: name,
+  };
+  const idx = proposals.findIndex((p) => p['type'] === 'create_project');
+  const at = idx === -1 ? proposals.length : idx + 1;
+  return [...proposals.slice(0, at), nav, ...proposals.slice(at)];
 }
 
 /**

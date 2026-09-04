@@ -152,7 +152,10 @@ export type AssistantProposal =
   | {
       type: 'navigate_to_project';
       summary: string;
-      projectId: string;
+      /** Real UUID when known; omit until create_project Apply binds it. */
+      projectId?: string;
+      /** Used with create_project in the same batch (name → id after Apply). */
+      projectName?: string;
     }
   | {
       type: 'move_tasks_to_project';

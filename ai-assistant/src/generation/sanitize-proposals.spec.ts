@@ -62,6 +62,11 @@ describe('sanitizeProposals', () => {
         name: 'Billing',
       },
       {
+        type: 'navigate_to_project',
+        summary: 'Open Billing',
+        projectName: 'Billing',
+      },
+      {
         type: 'update_task',
         summary: 'Assign Vadim',
         taskId: 't3',
@@ -105,6 +110,80 @@ describe('sanitizeProposals', () => {
       })),
     };
     expect(sanitizeProposals(raw)).toEqual([]);
+  });
+
+  it('keeps create_project + 5 tasks and injects navigate', () => {
+    const raw = {
+      proposals: [
+        {
+          type: 'create_project',
+          summary: 'Interview prep',
+          name: 'Interview Prep — Full Stack Developer',
+        },
+        ...Array.from({ length: 5 }, (_, i) => ({
+          type: 'create_task',
+          summary: `Task ${i}`,
+          projectName: 'Interview Prep — Full Stack Developer',
+          title: `Task ${i}`,
+        })),
+      ],
+    };
+    const cleaned = sanitizeProposals(raw);
+    expect(cleaned).toHaveLength(7);
+    expect(cleaned[0]).toMatchObject({ type: 'create_project' });
+    expect(cleaned[1]).toEqual({
+      type: 'navigate_to_project',
+      summary: 'Open Interview Prep — Full Stack Developer',
+      projectName: 'Interview Prep — Full Stack Developer',
+    });
+    expect(cleaned.filter((p) => p['type'] === 'create_task')).toHaveLength(5);
+  });
+
+  it('does not duplicate navigate when already present by name', () => {
+    const raw = {
+      proposals: [
+        {
+          type: 'create_project',
+          summary: 'New',
+          name: 'Prep',
+        },
+        {
+          type: 'navigate_to_project',
+          summary: 'Open Prep',
+          projectName: 'Prep',
+        },
+        {
+          type: 'create_task',
+          summary: 'Add one',
+          projectName: 'Prep',
+          title: 'Read the job description',
+        },
+      ],
+    };
+    const cleaned = sanitizeProposals(raw);
+    expect(
+      cleaned.filter((p) => p['type'] === 'navigate_to_project'),
+    ).toHaveLength(1);
+    expect(cleaned).toHaveLength(3);
+  });
+
+  it('keeps name-only navigate_to_project', () => {
+    const raw = {
+      proposals: [
+        {
+          type: 'navigate_to_project',
+          summary: 'Open Prep',
+          projectName: 'Prep',
+        },
+      ],
+    };
+    expect(sanitizeProposals(raw)).toEqual([
+      {
+        type: 'navigate_to_project',
+        summary: 'Open Prep',
+        projectName: 'Prep',
+      },
+    ]);
   });
 
   it('sanitizes bulk update and dedupe', () => {
@@ -249,6 +328,11 @@ describe('sanitizeProposals', () => {
     const cleaned = sanitizeProposals(raw);
     expect(cleaned[0]?.['type']).toBe('create_project');
     expect(cleaned[1]).toEqual({
+      type: 'navigate_to_project',
+      summary: 'Open My test project',
+      projectName: 'My test project',
+    });
+    expect(cleaned[2]).toEqual({
       type: 'create_task',
       summary: 'Add setup task',
       projectName: 'My test project',
@@ -327,6 +411,11 @@ describe('sanitizeProposals', () => {
         type: 'create_project',
         summary: 'Create Payments2',
         name: 'Payments2',
+      },
+      {
+        type: 'navigate_to_project',
+        summary: 'Open Payments2',
+        projectName: 'Payments2',
       },
       {
         type: 'move_tasks_to_project',

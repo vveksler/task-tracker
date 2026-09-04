@@ -29,7 +29,7 @@ jest.mock('@/lib/api-client', () => ({
 }));
 
 jest.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, refresh: jest.fn() }),
   useParams: () => mockParams,
   usePathname: () =>
     mockParams.projectId
@@ -637,6 +637,81 @@ describe('AssistantChat proposals', () => {
         body: JSON.stringify({
           projectId: '11111111-1111-4111-8111-111111111111',
           title: 'Setup project structure',
+        }),
+      });
+    });
+  });
+
+  it('binds name-only navigate after create_project Apply then Go', async () => {
+    mockProposals = [
+      {
+        type: 'create_project',
+        summary: "Create project 'Interview Prep'",
+        name: 'Interview Prep',
+      },
+      {
+        type: 'navigate_to_project',
+        summary: 'Open Interview Prep',
+        projectName: 'Interview Prep',
+      },
+      {
+        type: 'create_task',
+        summary: "Add task 'JS Deep Dive'",
+        projectName: 'Interview Prep',
+        title: 'JS Deep Dive',
+      },
+    ];
+    mockApiFetch.mockImplementation(async (path: string) => {
+      if (path.endsWith('/projects') && !path.includes('dedupe')) {
+        return {
+          id: '33333333-3333-4333-8333-333333333333',
+          name: 'Interview Prep',
+          workspaceId: 'ws-1',
+          createdAt: '2026-09-04T00:00:00.000Z',
+        };
+      }
+      return {};
+    });
+
+    const user = userEvent.setup();
+    render(<AssistantChat workspaceId="ws-1" />);
+
+    await user.type(
+      screen.getByPlaceholderText(/ask about tasks/i),
+      'create project and tasks',
+    );
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+
+    expect(await screen.findByRole('button', { name: 'Go' })).toBeDisabled();
+
+    const applyButtons = await screen.findAllByRole('button', {
+      name: 'Apply',
+    });
+    await user.click(applyButtons[0]!);
+
+    await waitFor(() => {
+      expect(mockApiFetch).toHaveBeenCalledWith('/workspaces/ws-1/projects', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Interview Prep' }),
+      });
+    });
+
+    await user.click(await screen.findByRole('button', { name: 'Go' }));
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith(
+        '/workspaces/ws-1/projects/33333333-3333-4333-8333-333333333333',
+      );
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+
+    await waitFor(() => {
+      expect(mockApiFetch).toHaveBeenCalledWith('/workspaces/ws-1/tasks', {
+        method: 'POST',
+        body: JSON.stringify({
+          projectId: '33333333-3333-4333-8333-333333333333',
+          title: 'JS Deep Dive',
         }),
       });
     });

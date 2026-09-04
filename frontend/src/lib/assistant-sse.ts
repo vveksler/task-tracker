@@ -64,7 +64,10 @@ function isAssistantProposal(value: unknown): value is AssistantProposal {
     );
   }
   if (v['type'] === 'create_task') {
-    return typeof v['projectId'] === 'string' && typeof v['title'] === 'string';
+    const hasProject =
+      typeof v['projectId'] === 'string' ||
+      typeof v['projectName'] === 'string';
+    return hasProject && typeof v['title'] === 'string';
   }
   if (v['type'] === 'create_project') {
     return typeof v['name'] === 'string';
@@ -83,8 +86,13 @@ function isAssistantProposal(value: unknown): value is AssistantProposal {
   if (v['type'] === 'dedupe_projects') {
     return v['keep'] === 'oldest' || v['keep'] === 'newest';
   }
-  if (v['type'] === 'delete_project' || v['type'] === 'navigate_to_project') {
+  if (v['type'] === 'delete_project') {
     return typeof v['projectId'] === 'string';
+  }
+  if (v['type'] === 'navigate_to_project') {
+    return (
+      typeof v['projectId'] === 'string' || typeof v['projectName'] === 'string'
+    );
   }
   if (v['type'] === 'move_tasks_to_project') {
     const sourceOk = typeof v['sourceProjectId'] === 'string';

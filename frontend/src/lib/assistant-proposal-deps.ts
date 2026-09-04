@@ -71,11 +71,13 @@ export function requiredCreateProjectCards(
 
   if (proposal.type === 'navigate_to_project') {
     const pid = proposal.projectId?.trim() ?? '';
+    const pname = proposal.projectName?.trim() ?? '';
     if (isUuid(pid)) return [];
     const matched = creates.filter(
       (c) =>
         c.proposal.type === 'create_project' &&
-        namesMatch(c.proposal.name, pid),
+        (namesMatch(c.proposal.name, pname) ||
+          namesMatch(c.proposal.name, pid)),
     );
     if (matched.length > 0) return matched;
     return creates.length === 1 ? creates : [];

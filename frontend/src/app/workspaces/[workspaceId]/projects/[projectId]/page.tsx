@@ -53,6 +53,7 @@ const BoardPage = () => {
       <div className="board-page-header">
         <Link
           href={`/workspaces/${workspaceId}`}
+          prefetch={false}
           className="text-sm text-gray-500 hover:text-gray-700"
         >
           &larr; Projects

@@ -130,6 +130,39 @@ function bindMoveTargetToProject(
   return proposal;
 }
 
+/**
+ * After create_project Apply, bind pending navigate cards that still
+ * reference the new project by name / placeholder (not a real UUID).
+ */
+function bindNavigateToProject(
+  proposal: Extract<AssistantProposal, { type: 'navigate_to_project' }>,
+  created: { id: string; name: string },
+  createProjectCountInMessage: number,
+): Extract<AssistantProposal, { type: 'navigate_to_project' }> {
+  const pid = proposal.projectId?.trim() ?? '';
+  const pname = proposal.projectName?.trim() ?? '';
+  const nameMatch =
+    (pname && pname.toLowerCase() === created.name.toLowerCase()) ||
+    (pid && pid.toLowerCase() === created.name.toLowerCase());
+
+  if (isUuid(pid) && pid !== created.id) {
+    return proposal;
+  }
+  if (isUuid(pid) && pid === created.id) {
+    return { ...proposal, projectId: created.id, projectName: created.name };
+  }
+  if (nameMatch || !isUuid(pid)) {
+    if (nameMatch || createProjectCountInMessage <= 1) {
+      return {
+        ...proposal,
+        projectId: created.id,
+        projectName: created.name,
+      };
+    }
+  }
+  return proposal;
+}
+
 export function AssistantChat({
   workspaceId,
   variant = 'page',
@@ -326,9 +359,15 @@ export function AssistantChat({
           );
           resultNote = 'Project deleted';
         } else if (proposal.type === 'navigate_to_project') {
-          router.push(
-            `/workspaces/${workspaceId}/projects/${proposal.projectId}`,
-          );
+          const targetId = proposal.projectId?.trim() ?? '';
+          if (!targetId) {
+            throw new Error(
+              proposal.projectName
+                ? `Apply the “create project '${proposal.projectName}'” card first`
+                : 'Apply the create project card first (projectId is not set yet)',
+            );
+          }
+          router.push(`/workspaces/${workspaceId}/projects/${targetId}`);
           resultNote = 'Opened project';
         } else if (proposal.type === 'move_tasks_to_project') {
           if (!isUuid(proposal.targetProjectId)) {
@@ -417,14 +456,12 @@ export function AssistantChat({
                       createdProject,
                       createProjectCount,
                     );
-                  } else if (
-                    nextProposal.type === 'navigate_to_project' &&
-                    !isUuid(nextProposal.projectId)
-                  ) {
-                    nextProposal = {
-                      ...nextProposal,
-                      projectId: createdProject.id,
-                    };
+                  } else if (nextProposal.type === 'navigate_to_project') {
+                    nextProposal = bindNavigateToProject(
+                      nextProposal,
+                      createdProject,
+                      createProjectCount,
+                    );
                   }
                 }
 
@@ -447,6 +484,13 @@ export function AssistantChat({
 
         onApplied?.(proposal);
         assistantCtx?.notifyApplied(proposal);
+        if (
+          proposal.type === 'create_project' ||
+          proposal.type === 'dedupe_projects' ||
+          proposal.type === 'delete_project'
+        ) {
+          router.refresh();
+        }
       } catch (err) {
         let message =
           err instanceof ApiError

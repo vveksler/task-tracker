@@ -36,13 +36,26 @@ export function WorkspaceDetailContent({
   const [isCreating, setIsCreating] = useState(false);
 
   const refetchProjects = useCallback(async () => {
-    const next = await apiFetch<Project[]>(
-      `/workspaces/${workspaceId}/projects`,
-    );
-    setProjects(next);
+    try {
+      const next = await apiFetch<Project[]>(
+        `/workspaces/${workspaceId}/projects`,
+      );
+      setProjects(next);
+    } catch {
+      // Keep the last good list (SSR snapshot or prior fetch). A failed
+      // revalidation should not blank the page.
+    }
   }, [workspaceId]);
 
-  // Hot-refresh project list after AI Apply of create/dedupe/delete project.
+  // Next's client router cache can reuse the workspace page RSC payload
+  // after we create/delete a project on another route (e.g. Apply then Go).
+  // Re-fetch on mount so back-navigation is not stuck on that snapshot.
+  // First paint still uses initialProjects.
+  useEffect(() => {
+    void refetchProjects();
+  }, [refetchProjects]);
+
+  // Hot-refresh after AI Apply of create/dedupe/delete project.
   useEffect(() => {
     return subscribeApplied((proposal) => {
       if (
@@ -51,9 +64,10 @@ export function WorkspaceDetailContent({
         proposal.type === 'delete_project'
       ) {
         void refetchProjects();
+        router.refresh();
       }
     });
-  }, [subscribeApplied, refetchProjects]);
+  }, [subscribeApplied, refetchProjects, router]);
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState('');
@@ -74,11 +88,12 @@ export function WorkspaceDetailContent({
         setProjects((prev) => [...prev, project]);
         setNewName('');
         setShowCreate(false);
+        router.refresh();
       } finally {
         setIsCreating(false);
       }
     },
-    [workspaceId, newName],
+    [workspaceId, newName, router],
   );
 
   const handleSaveWorkspaceName = useCallback(async () => {
@@ -128,8 +143,9 @@ export function WorkspaceDetailContent({
         method: 'DELETE',
       });
       setProjects((prev) => prev.filter((p) => p.id !== projectId));
+      router.refresh();
     },
-    [workspaceId],
+    [workspaceId, router],
   );
 
   if (wsLoading) {

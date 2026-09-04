@@ -67,4 +67,24 @@ describe('assistant-proposal-deps', () => {
     expect(requiredCreateProjectCards(createTask, cards)).toHaveLength(1);
     expect(getProposalBlockReason(cards[1]!, cards)).toMatch(/Payments2/);
   });
+
+  it('blocks navigate until matching create_project is applied', () => {
+    const nav: AssistantProposal = {
+      type: 'navigate_to_project',
+      summary: 'Open Payments2',
+      projectName: 'Payments2',
+    };
+    const cards = [
+      { key: 'c1', proposal: createPayments, status: 'pending' },
+      { key: 'n1', proposal: nav, status: 'pending' },
+    ];
+    expect(getProposalBlockReason(cards[1]!, cards)).toBe(
+      "Apply “create project 'Payments2'” first",
+    );
+    const after = [
+      { key: 'c1', proposal: createPayments, status: 'applied' },
+      { key: 'n1', proposal: nav, status: 'pending' },
+    ];
+    expect(getProposalBlockReason(after[1]!, after)).toBeNull();
+  });
 });

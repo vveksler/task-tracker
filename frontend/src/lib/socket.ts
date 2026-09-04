@@ -12,7 +12,11 @@ export function getSocket(): Socket {
     socket = io(WS_URL, {
       autoConnect: false,
       transports: ['websocket'],
-      auth: { token: getAccessToken() ?? '' },
+      // Function, not `{ token }`: Socket.io calls this on every handshake
+      // (including auto-reconnect), so we send the current in-memory JWT.
+      auth: (cb) => {
+        cb({ token: getAccessToken() ?? '' });
+      },
     });
   }
   return socket;
@@ -20,7 +24,6 @@ export function getSocket(): Socket {
 
 export function connectSocket(): Socket {
   const s = getSocket();
-  s.auth = { token: getAccessToken() ?? '' };
   if (!s.connected) s.connect();
   return s;
 }

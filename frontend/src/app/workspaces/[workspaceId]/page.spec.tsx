@@ -107,11 +107,25 @@ const renderContent = () =>
     <WorkspaceDetailContent workspaceId="ws-1" initialProjects={projects} />,
   );
 
+function mockProjectsGet(list: Project[] = projects) {
+  mockApiFetch.mockImplementation(
+    (path: string, init?: { method?: string }) => {
+      const method = init?.method ?? 'GET';
+      if (method === 'GET' && path === '/workspaces/ws-1/projects') {
+        return Promise.resolve(list);
+      }
+      return Promise.resolve({});
+    },
+  );
+}
+
 describe('WorkspaceDetailContent', () => {
   beforeEach(() => {
     mockApiFetch.mockReset();
     mockPush.mockReset();
+    mockRefresh.mockReset();
     mockWorkspaceCtx.refetch.mockReset();
+    mockProjectsGet();
   });
 
   // ── ADMIN + OWNER scenarios ──
@@ -138,7 +152,17 @@ describe('WorkspaceDetailContent', () => {
 
     it('should allow inline editing of workspace name', async () => {
       const user = userEvent.setup();
-      mockApiFetch.mockResolvedValueOnce({ ...workspace, name: 'Renamed WS' });
+      mockApiFetch.mockImplementation(
+        (path: string, init?: { method?: string }) => {
+          if (path === '/workspaces/ws-1/projects') {
+            return Promise.resolve(projects);
+          }
+          if (path === '/workspaces/ws-1' && init?.method === 'PATCH') {
+            return Promise.resolve({ ...workspace, name: 'Renamed WS' });
+          }
+          return Promise.resolve({});
+        },
+      );
 
       renderContent();
 
@@ -163,7 +187,14 @@ describe('WorkspaceDetailContent', () => {
 
     it('should delete workspace and redirect to /workspaces', async () => {
       window.confirm = jest.fn().mockReturnValue(true);
-      mockApiFetch.mockResolvedValueOnce(undefined);
+      mockApiFetch.mockImplementation(
+        (path: string, init?: { method?: string }) => {
+          if (path === '/workspaces/ws-1/projects') {
+            return Promise.resolve(projects);
+          }
+          return Promise.resolve(undefined);
+        },
+      );
 
       renderContent();
 
@@ -187,7 +218,9 @@ describe('WorkspaceDetailContent', () => {
       const header = getWorkspaceHeaderButtons()!;
       fireEvent.click(header.getByText('Delete'));
 
-      expect(mockApiFetch).not.toHaveBeenCalled();
+      expect(mockApiFetch).not.toHaveBeenCalledWith('/workspaces/ws-1', {
+        method: 'DELETE',
+      });
     });
 
     it('should show edit/delete controls on project cards', () => {
@@ -199,13 +232,20 @@ describe('WorkspaceDetailContent', () => {
 
     it('should delete a project and remove it from list', async () => {
       window.confirm = jest.fn().mockReturnValue(true);
-      mockApiFetch.mockResolvedValueOnce(undefined);
+      mockApiFetch.mockImplementation(
+        (path: string, init?: { method?: string }) => {
+          if (path === '/workspaces/ws-1/projects' && !init?.method) {
+            return Promise.resolve(projects);
+          }
+          return Promise.resolve(undefined);
+        },
+      );
 
       renderContent();
 
       const alphaCard = screen
         .getByText('Project Alpha')
-        .closest('.group') as HTMLElement;
+        .closest('.rounded-lg') as HTMLElement;
       const deleteBtn = within(alphaCard).getByText('Delete');
       fireEvent.click(deleteBtn);
 
@@ -250,7 +290,7 @@ describe('WorkspaceDetailContent', () => {
 
       const alphaCard = screen
         .getByText('Project Alpha')
-        .closest('.group') as HTMLElement;
+        .closest('.rounded-lg') as HTMLElement;
       expect(within(alphaCard).getByText('Edit')).toBeTruthy();
       expect(within(alphaCard).getByText('Delete')).toBeTruthy();
     });
@@ -286,7 +326,7 @@ describe('WorkspaceDetailContent', () => {
 
       const alphaCard = screen
         .getByText('Project Alpha')
-        .closest('.group') as HTMLElement;
+        .closest('.rounded-lg') as HTMLElement;
       const hiddenBtns = alphaCard?.querySelectorAll('button');
       expect(hiddenBtns?.length ?? 0).toBe(0);
     });
@@ -303,5 +343,25 @@ describe('WorkspaceDetailContent', () => {
 
       expect(screen.getByText('New project')).toBeTruthy();
     });
+  });
+
+  it('replaces a stale SSR project list after mount refetch', async () => {
+    mockProjectsGet([
+      ...projects,
+      {
+        id: 'proj-new',
+        name: 'Interview Prep — Full Stack Developer',
+        description: null,
+        workspaceId: 'ws-1',
+        createdAt: '2026-09-04T00:00:00.000Z',
+        updatedAt: '2026-09-04T00:00:00.000Z',
+      },
+    ]);
+
+    renderContent();
+
+    expect(
+      await screen.findByText('Interview Prep — Full Stack Developer'),
+    ).toBeTruthy();
   });
 });
