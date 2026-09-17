@@ -29,3 +29,4 @@ aiAssistant:
   enabled: true
   openaiApiKey: "sk-..."
   anthropicApiKey: "sk-ant-..."
+  internalToken: "openssl-rand-hex-32-output-here"

@@ -1,5 +1,4 @@
 import {
-  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -7,6 +6,10 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TaskGateway } from '../gateway/task.gateway';
+import {
+  assertInWorkspace,
+  findProjectInWorkspace,
+} from '../common/workspace-scope';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { DedupeProjectsDto } from './dto/dedupe-projects.dto';
@@ -64,30 +67,13 @@ export class ProjectsService {
       },
     });
 
-    if (!project) {
-      throw new NotFoundException('Project not found');
-    }
-
-    if (project.workspaceId !== workspaceId) {
-      throw new ForbiddenException('Project does not belong to this workspace');
-    }
-
+    // Rich select in one query, so assert on the loaded row.
+    assertInWorkspace(project, workspaceId, 'Project', (p) => p.workspaceId);
     return project;
   }
 
   async update(workspaceId: string, projectId: string, dto: UpdateProjectDto) {
-    const project = await this.prisma.project.findUnique({
-      where: { id: projectId },
-      select: { id: true, workspaceId: true },
-    });
-
-    if (!project) {
-      throw new NotFoundException('Project not found');
-    }
-
-    if (project.workspaceId !== workspaceId) {
-      throw new ForbiddenException('Project does not belong to this workspace');
-    }
+    await findProjectInWorkspace(this.prisma, workspaceId, projectId);
 
     return this.prisma.project.update({
       where: { id: projectId },
@@ -97,18 +83,7 @@ export class ProjectsService {
   }
 
   async remove(workspaceId: string, projectId: string) {
-    const project = await this.prisma.project.findUnique({
-      where: { id: projectId },
-      select: { id: true, workspaceId: true },
-    });
-
-    if (!project) {
-      throw new NotFoundException('Project not found');
-    }
-
-    if (project.workspaceId !== workspaceId) {
-      throw new ForbiddenException('Project does not belong to this workspace');
-    }
+    await findProjectInWorkspace(this.prisma, workspaceId, projectId);
 
     // Emit WS delete events for all tasks before cascade delete
     if (this.gateway) {

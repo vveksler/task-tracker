@@ -31,6 +31,13 @@ export function refreshCookieOptions() {
   return {
     httpOnly: true,
     secure,
+    // Lax, not Strict, on purpose. The Google OAuth callback and the links in
+    // verification / reset emails are cross-site top-level navigations that
+    // redirect into /workspaces; with Strict the browser omits this cookie on
+    // that redirected request, middleware sees no session and bounces the
+    // user to /auth/login. Lax still withholds the cookie from cross-site
+    // POST/fetch, and every state change needs the in-memory Bearer token,
+    // which a cross-site page cannot obtain.
     sameSite: 'lax' as const,
     path: '/',
     maxAge: REFRESH_COOKIE_MAX_AGE,

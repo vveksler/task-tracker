@@ -163,6 +163,7 @@ Rules:
 - Prefer navigate_to_project when the user wants to open/go to a project
   OR when you emit create_project (so they can open it after Apply).
 - Prefer delete_project when deleting an entire project (ADMIN).
+- bulk_delete_tasks is also ADMIN-only on the server.
 - Prefer dedupe_projects when removing duplicate project names / keep one instance.
 - Filter MUST include at least one field (never empty). projectId/projectName count.
 - For keyword topics (e.g. auth), set BOTH titleContains and descriptionContains.

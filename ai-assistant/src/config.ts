@@ -8,6 +8,10 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   OPENAI_API_KEY: z.string().min(1),
   ANTHROPIC_API_KEY: z.string().min(1),
+  // Shared secret Nest sends on /internal/* calls. Network isolation alone is
+  // not enough: compose publishes this port, and anything that can reach the
+  // service could otherwise read any workspace or overwrite embeddings.
+  AI_ASSISTANT_INTERNAL_TOKEN: z.string().min(32),
   EMBEDDING_MODEL: z.string().default('text-embedding-3-small'),
   EMBEDDING_DIMENSIONS: z.coerce.number().default(1536),
   GENERATION_MODEL: z.string().default('claude-sonnet-4-6'),
@@ -18,6 +22,7 @@ export type AppConfig = z.infer<typeof envSchema> & {
   databaseUrl: string;
   openaiApiKey: string;
   anthropicApiKey: string;
+  internalToken: string;
   embeddingModel: string;
   embeddingDimensions: number;
   generationModel: string;
@@ -43,6 +48,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     databaseUrl: v.DATABASE_URL,
     openaiApiKey: v.OPENAI_API_KEY,
     anthropicApiKey: v.ANTHROPIC_API_KEY,
+    internalToken: v.AI_ASSISTANT_INTERNAL_TOKEN,
     embeddingModel: v.EMBEDDING_MODEL,
     embeddingDimensions: v.EMBEDDING_DIMENSIONS,
     generationModel: v.GENERATION_MODEL,

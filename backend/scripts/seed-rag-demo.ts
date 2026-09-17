@@ -4,6 +4,7 @@
  */
 
 import { PrismaClient, TaskStatus } from '@prisma/client';
+import { backfillWorkspaceEmbeddings } from './lib/backfill-embeddings';
 
 const WORKSPACE_ID = '38eef5ac-f354-411d-9edd-83caaed88aa7';
 
@@ -162,33 +163,16 @@ async function main() {
 
   console.log(`Total tasks in workspace: ${tasks.length}`);
 
-  const aiUrl = process.env['AI_ASSISTANT_URL'] ?? 'http://localhost:8000';
-  let reindexed = 0;
-  for (const task of tasks) {
-    try {
-      const res = await fetch(`${aiUrl}/internal/embed`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          task_id: task.id,
-          title: task.title,
-          description: task.description,
-        }),
-      });
-      if (res.ok) reindexed += 1;
-      else {
-        console.warn(`reindex failed for ${task.id}: HTTP ${res.status}`);
-      }
-    } catch {
-      console.warn(
-        `AI assistant not reachable at ${aiUrl} — skip embeddings. Start ai-assistant and re-run, or create/edit a task via API to trigger reindex.`,
-      );
-      break;
-    }
-  }
-
-  if (reindexed > 0) {
-    console.log(`Reindexed embeddings: ${reindexed}/${tasks.length}`);
+  try {
+    const result = await backfillWorkspaceEmbeddings(prisma, WORKSPACE_ID);
+    console.log(
+      `Reindexed embeddings: ${result.reindexed}/${result.total} (${result.failed} failed)`,
+    );
+  } catch (err) {
+    // Demo data is still useful without embeddings; say how to finish.
+    console.warn(
+      `Skipped embeddings: ${err instanceof Error ? err.message : String(err)}. Start ai-assistant and re-run enable-ai-assistant.ts to backfill.`,
+    );
   }
 }
 

@@ -35,7 +35,7 @@ function loadDotEnvIfPresent(): void {
 
 loadDotEnvIfPresent();
 const config = loadConfig();
-const app = createApp();
+const app = createApp(config.internalToken);
 
 // Do not block process start on DB — Railway healthcheck hits /health/live.
 void tryConnectPool();

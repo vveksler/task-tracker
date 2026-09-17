@@ -502,7 +502,8 @@ export function AssistantChat({
           err instanceof ApiError &&
           err.status === 403 &&
           (proposal.type === 'dedupe_projects' ||
-            proposal.type === 'delete_project')
+            proposal.type === 'delete_project' ||
+            proposal.type === 'bulk_delete_tasks')
         ) {
           message = 'Admin only — you need ADMIN role for this action';
         }

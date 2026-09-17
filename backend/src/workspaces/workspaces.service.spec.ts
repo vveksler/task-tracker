@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { WorkspaceRole } from '@prisma/client';
 import { WorkspacesService } from './workspaces.service';
+import { TaskGateway } from '../gateway/task.gateway';
 import { PrismaService } from '../prisma/prisma.service';
 
 const adminId = 'admin-uuid';
@@ -124,6 +125,33 @@ describe('WorkspacesService', () => {
           userId_workspaceId: { userId: memberId, workspaceId },
         },
       });
+    });
+
+    it('should evict the removed member from the realtime room', async () => {
+      const gateway = { evictUserFromWorkspace: jest.fn() };
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          WorkspacesService,
+          { provide: PrismaService, useValue: prisma },
+          { provide: TaskGateway, useValue: gateway },
+        ],
+      }).compile();
+      const withGateway = module.get(WorkspacesService);
+
+      prisma['workspaceMember']!['findUnique']!.mockResolvedValue({
+        userId: memberId,
+        workspaceId,
+      });
+      prisma['workspace']!['findUnique']!.mockResolvedValue({
+        ownerId: adminId,
+      });
+
+      await withGateway.removeMember(workspaceId, memberId, adminId);
+
+      expect(gateway.evictUserFromWorkspace).toHaveBeenCalledWith(
+        workspaceId,
+        memberId,
+      );
     });
 
     it('should throw if trying to remove yourself', async () => {

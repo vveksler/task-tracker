@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { ThrottlerModule } from '@nestjs/throttler';
 import {
   appConfig,
   jwtConfig,
@@ -34,6 +35,9 @@ import { AssistantModule } from './assistant/assistant.module';
       ],
     }),
     EventEmitterModule.forRoot(),
+    // Defaults only; limits are set per route with @Throttle and enforced by
+    // KeyedThrottlerGuard where applied (no global guard).
+    ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 60 }]),
     PrismaModule,
     MailModule,
     HealthModule,

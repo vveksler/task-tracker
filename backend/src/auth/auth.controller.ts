@@ -7,11 +7,14 @@ import {
   Req,
   Res,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { Public } from '../common/decorators/public.decorator';
+import { KeyedThrottlerGuard } from '../common/guards/keyed-throttler.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { JwtPayload } from '../common/types/jwt-payload';
 import { AuthService } from './auth.service';
@@ -25,6 +28,9 @@ import { ResendVerificationDto } from './dto/resend-verification.dto';
 
 const REFRESH_COOKIE = 'refresh_token';
 
+// Per-email window for public auth throttles (see KeyedThrottlerGuard).
+const AUTH_WINDOW_MS = 15 * 60_000;
+
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
@@ -34,6 +40,8 @@ export class AuthController {
   ) {}
 
   @Public()
+  @UseGuards(KeyedThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: AUTH_WINDOW_MS } })
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
@@ -44,6 +52,8 @@ export class AuthController {
   }
 
   @Public()
+  @UseGuards(KeyedThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: AUTH_WINDOW_MS } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login with email and password' })
@@ -97,6 +107,8 @@ export class AuthController {
   }
 
   @Public()
+  @UseGuards(KeyedThrottlerGuard)
+  @Throttle({ default: { limit: 3, ttl: AUTH_WINDOW_MS } })
   @Post('resend-verification')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Resend email verification link' })
@@ -105,6 +117,8 @@ export class AuthController {
   }
 
   @Public()
+  @UseGuards(KeyedThrottlerGuard)
+  @Throttle({ default: { limit: 3, ttl: AUTH_WINDOW_MS } })
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Request a password reset email' })

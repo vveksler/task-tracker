@@ -1,8 +1,10 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { TaskStatus } from '@prisma/client';
+import { TaskStatus, WorkspaceRole } from '@prisma/client';
 import { TasksService } from './tasks.service';
+import { TasksController } from './tasks.controller';
+import { ROLES_KEY } from '../common/decorators/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { TaskGateway } from '../gateway/task.gateway';
 
@@ -250,5 +252,21 @@ describe('TasksService.bulkUpdate / bulkDelete', () => {
         filter: { projectName: 'Auth' },
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+describe('TasksController RBAC metadata', () => {
+  it('requires ADMIN for bulk-delete but not for bulk-update', () => {
+    const bulkDeleteRoles = Reflect.getMetadata(
+      ROLES_KEY,
+      TasksController.prototype.bulkDelete,
+    ) as WorkspaceRole[] | undefined;
+    const bulkUpdateRoles = Reflect.getMetadata(
+      ROLES_KEY,
+      TasksController.prototype.bulkUpdate,
+    ) as WorkspaceRole[] | undefined;
+
+    expect(bulkDeleteRoles).toEqual([WorkspaceRole.ADMIN]);
+    expect(bulkUpdateRoles).toBeUndefined();
   });
 });

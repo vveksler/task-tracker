@@ -198,6 +198,10 @@ export class WorkspacesService {
         },
       }),
     ]);
+
+    if (this.gateway) {
+      await this.gateway.evictUserFromWorkspace(workspaceId, targetUserId);
+    }
   }
 
   async getMembers(workspaceId: string) {

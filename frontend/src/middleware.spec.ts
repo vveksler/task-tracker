@@ -21,7 +21,8 @@ const originalFetch = global.fetch;
 
 beforeEach(() => {
   global.fetch = jest.fn();
-  process.env['NODE_ENV'] = 'test';
+  // @types/node marks NODE_ENV readonly; widen to assign it in tests.
+  (process.env as Record<string, string>)['NODE_ENV'] = 'test';
 });
 
 afterEach(() => {

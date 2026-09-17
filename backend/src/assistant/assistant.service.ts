@@ -15,10 +15,26 @@ import { fetchWithRetry } from './fetch-with-retry';
 export class AssistantService {
   private readonly logger = new Logger(AssistantService.name);
   private readonly baseUrl: string;
+  private readonly internalToken: string;
 
   constructor(private readonly config: ConfigService) {
     this.baseUrl =
       this.config.get<string>('assistant.url') ?? 'http://localhost:8000';
+    this.internalToken =
+      this.config.get<string>('assistant.internalToken') ?? '';
+  }
+
+  private internalHeaders(): Record<string, string> {
+    if (!this.internalToken) {
+      // Assistant is optional, so don't crash boot — fail the call loudly.
+      throw new ServiceUnavailableException(
+        'AI assistant is not configured (AI_ASSISTANT_INTERNAL_TOKEN is empty)',
+      );
+    }
+    return {
+      'Content-Type': 'application/json',
+      'x-internal-token': this.internalToken,
+    };
   }
 
   async ask(
@@ -27,13 +43,14 @@ export class AssistantService {
     currentProjectId?: string,
     history?: { role: 'user' | 'assistant'; content: string }[],
   ): Promise<ReadableStream<Uint8Array>> {
+    const headers = this.internalHeaders();
     let response: Response;
     try {
       response = await fetchWithRetry(
         `${this.baseUrl}/internal/assistant/ask`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({
             workspace_id: workspaceId,
             question,
@@ -75,11 +92,12 @@ export class AssistantService {
     title: string,
     description: string | null,
   ): Promise<void> {
+    const headers = this.internalHeaders();
     let response: Response;
     try {
       response = await fetchWithRetry(`${this.baseUrl}/internal/embed`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           task_id: taskId,
           title,

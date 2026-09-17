@@ -74,6 +74,11 @@ spec:
                 secretKeyRef:
                   name: task-tracker-secret
                   key: ANTHROPIC_API_KEY
+            - name: AI_ASSISTANT_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: task-tracker-secret
+                  key: AI_ASSISTANT_INTERNAL_TOKEN
           resources:
             {{- toYaml .Values.aiAssistant.resources | nindent 12 }}
           readinessProbe:

@@ -12,8 +12,10 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
+import { KeyedThrottlerGuard } from '../common/guards/keyed-throttler.guard';
 import { WorkspaceRolesGuard } from '../common/guards/workspace-roles.guard';
 import { AiAssistantEnabledGuard } from './ai-assistant-enabled.guard';
 import { AssistantService } from './assistant.service';
@@ -27,6 +29,9 @@ export class AssistantController {
   constructor(private readonly assistantService: AssistantService) {}
 
   @Post('ask')
+  // Each ask is ~4 paid LLM/embedding calls; bound spend per user.
+  @UseGuards(KeyedThrottlerGuard)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({
     summary: 'Ask a question about tasks in this workspace (SSE stream)',
   })

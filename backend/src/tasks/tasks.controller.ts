@@ -14,6 +14,8 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { WorkspaceRole } from '@prisma/client';
+import { Roles } from '../common/decorators/roles.decorator';
 import { WorkspaceRolesGuard } from '../common/guards/workspace-roles.guard';
 import { LoggingInterceptor } from './interceptors/logging.interceptor';
 import { TasksService } from './tasks.service';
@@ -55,7 +57,10 @@ export class TasksController {
     return this.tasksService.bulkUpdate(workspaceId, dto);
   }
 
+  // ADMIN-only, like DELETE /projects/:id — a projectId filter wipes a whole
+  // project's tasks, so it must not be cheaper to reach than deleting it.
   @Post('bulk-delete')
+  @Roles(WorkspaceRole.ADMIN)
   @ApiOperation({
     summary:
       'Bulk-delete tasks in this workspace matching a filter (chat suggest+confirm)',

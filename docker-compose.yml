@@ -42,23 +42,28 @@ services:
       REDIS_URL: 'redis://redis:6379'
       JWT_ACCESS_SECRET: 'docker-access-secret-change-in-prod'
       JWT_ACCESS_EXPIRES_IN: '15m'
-      JWT_REFRESH_SECRET: 'docker-refresh-secret-change-in-prod'
       JWT_REFRESH_EXPIRES_IN: '7d'
       FRONTEND_ORIGIN: 'http://localhost:3000'
       PORT: '3001'
       NODE_ENV: 'production'
       AI_ASSISTANT_URL: 'http://ai-assistant:8000'
+      # Shared secret for /internal/* on ai-assistant — same value on both.
+      AI_ASSISTANT_INTERNAL_TOKEN: '${AI_ASSISTANT_INTERNAL_TOKEN:-docker-internal-token-change-in-prod-0000}'
       # Optional Google OAuth — set in root .env (gitignored)
       GOOGLE_CLIENT_ID: '${GOOGLE_CLIENT_ID:-}'
       GOOGLE_CLIENT_SECRET: '${GOOGLE_CLIENT_SECRET:-}'
       GOOGLE_CALLBACK_URL: '${GOOGLE_CALLBACK_URL:-http://localhost:3000/api/auth/google/callback}'
+    # No dependency on ai-assistant: the assistant is optional (needs LLM keys)
+    # and Nest already returns 503 when it is unreachable.
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      ai-assistant:
-        condition: service_healthy
+      # Without this the backend can pass /health/ready (SELECT 1) on an empty
+      # schema before migrations finish — same race the Helm chart guards.
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test:
         ['CMD-SHELL', 'wget -qO- http://localhost:3001/health/ready || exit 1']
@@ -74,8 +79,11 @@ services:
       DATABASE_URL: 'postgresql://tracker:tracker@postgres:5432/task_tracker'
       OPENAI_API_KEY: '${OPENAI_API_KEY}'
       ANTHROPIC_API_KEY: '${ANTHROPIC_API_KEY}'
+      AI_ASSISTANT_INTERNAL_TOKEN: '${AI_ASSISTANT_INTERNAL_TOKEN:-docker-internal-token-change-in-prod-0000}'
+    # Loopback only: lets a locally-run backend reach it without exposing
+    # /internal/* on the LAN.
     ports:
-      - '8000:8000'
+      - '127.0.0.1:8000:8000'
     healthcheck:
       test:
         [
@@ -118,7 +126,7 @@ services:
       backend:
         condition: service_healthy
 
-  # One-shot: run migrations after backend is healthy
+  # One-shot: run migrations before the backend starts
   migrate:
     build:
       context: ./backend

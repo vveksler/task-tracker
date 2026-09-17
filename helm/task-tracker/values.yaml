@@ -80,6 +80,8 @@ aiAssistant:
   port: 8000
   openaiApiKey: ""
   anthropicApiKey: ""
+  # Shared secret for Nest → ai-assistant /internal/* calls (min 32 chars).
+  internalToken: k8s-internal-token-change-in-prod-00000000
   resources:
     requests:
       cpu: 100m

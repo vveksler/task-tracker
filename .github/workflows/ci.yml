@@ -35,7 +35,9 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16-alpine
+        # pgvector image: the task_embeddings migration runs
+        # CREATE EXTENSION vector, which stock postgres:16-alpine lacks.
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: tracker
           POSTGRES_PASSWORD: tracker
@@ -106,11 +108,36 @@ jobs:
       - name: Unit tests
         run: npm test -- --ci --coverage
 
-  # ── Docker: verify both images build successfully ──
+  # ── AI assistant: type-check, unit tests ──
+  ai-assistant:
+    name: AI Assistant
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-assistant
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ai-assistant/package-lock.json
+
+      - run: npm ci
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npm test
+
+  # ── Docker: verify all images build successfully ──
   docker:
     name: Docker Build
     runs-on: ubuntu-latest
-    needs: [format, backend, frontend]
+    needs: [format, backend, frontend, ai-assistant]
 
     steps:
       - uses: actions/checkout@v4
@@ -124,3 +151,6 @@ jobs:
             --build-arg NEXT_PUBLIC_API_URL=http://localhost:3001 \
             --build-arg NEXT_PUBLIC_WS_URL=http://localhost:3001 \
             -t task-tracker-frontend:ci ./frontend
+
+      - name: Build ai-assistant image
+        run: docker build -t task-tracker-ai-assistant:ci ./ai-assistant

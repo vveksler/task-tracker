@@ -8,7 +8,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { Logger, OnModuleDestroy } from '@nestjs/common';
+import { HttpException, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { createAdapter } from '@socket.io/redis-adapter';
@@ -16,6 +16,7 @@ import { createClient, type RedisClientType } from 'redis';
 import { Server, Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
 import type { JwtPayload } from '../common/types/jwt-payload';
+import { findProjectInWorkspace } from '../common/workspace-scope';
 import type {
   BoardSyncEvent,
   TaskCreatedEvent,
@@ -157,6 +158,23 @@ export class TaskGateway
       return;
     }
 
+    // Membership in workspaceId says nothing about projectId — without this
+    // check a member of any workspace could pass a foreign project's UUID and
+    // receive its full task list via board:sync (cross-tenant IDOR).
+    try {
+      await findProjectInWorkspace(
+        this.prisma,
+        data.workspaceId,
+        data.projectId,
+      );
+    } catch (err) {
+      if (err instanceof HttpException) {
+        client.emit('error', { message: err.message });
+        return;
+      }
+      throw err;
+    }
+
     const room = `workspace:${data.workspaceId}`;
 
     // Leave previous workspace rooms (but not the socket's own room)
@@ -176,7 +194,10 @@ export class TaskGateway
 
     // Send full board state on join — reconciliation strategy for reconnect
     const tasks = await this.prisma.task.findMany({
-      where: { projectId: data.projectId },
+      where: {
+        projectId: data.projectId,
+        project: { workspaceId: data.workspaceId },
+      },
       orderBy: { order: 'asc' },
     });
 
@@ -198,6 +219,28 @@ export class TaskGateway
     }
     client.data['workspaceId'] = undefined;
     client.data['projectId'] = undefined;
+  }
+
+  /**
+   * Remove a user's sockets from a workspace room after they lose membership.
+   *
+   * Membership is only checked on workspace:join, so without this a removed
+   * member keeps receiving live task events until they disconnect.
+   * fetchSockets() goes through the adapter, so with Redis this also reaches
+   * sockets connected to other backend pods.
+   */
+  async evictUserFromWorkspace(
+    workspaceId: string,
+    userId: string,
+  ): Promise<void> {
+    const room = `workspace:${workspaceId}`;
+    const sockets = await this.server.in(room).fetchSockets();
+
+    for (const socket of sockets) {
+      if (socket.data['userId'] !== userId) continue;
+      socket.leave(room);
+      socket.emit('error', { message: 'Removed from workspace' });
+    }
   }
 
   // ── Methods called by TasksService to broadcast events ──

@@ -35,6 +35,7 @@ describe('TaskGateway', () => {
   let jwtService: { verify: jest.Mock };
   let prisma: {
     workspaceMember: { findUnique: jest.Mock };
+    project: { findUnique: jest.Mock };
     task: { findMany: jest.Mock };
   };
   let mockServer: { to: jest.Mock };
@@ -43,6 +44,12 @@ describe('TaskGateway', () => {
     jwtService = { verify: jest.fn() };
     prisma = {
       workspaceMember: { findUnique: jest.fn() },
+      // Default: project belongs to the requested workspace.
+      project: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: projectId, workspaceId: 'workspace-uuid' }),
+      },
       task: { findMany: jest.fn() },
     };
     mockServer = {
@@ -156,6 +163,28 @@ describe('TaskGateway', () => {
       expect(client.join).not.toHaveBeenCalled();
     });
 
+    it('should reject join when project belongs to another workspace', async () => {
+      prisma.workspaceMember.findUnique.mockResolvedValue({ role: 'MEMBER' });
+      prisma.project.findUnique.mockResolvedValue({
+        id: 'foreign-project-uuid',
+        workspaceId: 'other-workspace-uuid',
+      });
+
+      const client = createMockSocket();
+      client.data['userId'] = userId;
+
+      await gateway.handleJoin(client, {
+        workspaceId,
+        projectId: 'foreign-project-uuid',
+      });
+
+      expect(client.emit).toHaveBeenCalledWith('error', {
+        message: 'Project does not belong to this workspace',
+      });
+      expect(client.join).not.toHaveBeenCalled();
+      expect(prisma.task.findMany).not.toHaveBeenCalled();
+    });
+
     it('should reject join for unauthenticated socket', async () => {
       const client = createMockSocket();
 
@@ -187,6 +216,29 @@ describe('TaskGateway', () => {
         'board:sync',
         expect.objectContaining({ type: 'board:sync' }),
       );
+    });
+  });
+
+  describe('evictUserFromWorkspace', () => {
+    it('should remove only the target user sockets from the room', async () => {
+      const target = { data: { userId }, leave: jest.fn(), emit: jest.fn() };
+      const other = {
+        data: { userId: 'other-user' },
+        leave: jest.fn(),
+        emit: jest.fn(),
+      };
+      const fetchSockets = jest.fn().mockResolvedValue([target, other]);
+      (mockServer as unknown as { in: jest.Mock }).in = jest
+        .fn()
+        .mockReturnValue({ fetchSockets });
+
+      await gateway.evictUserFromWorkspace(workspaceId, userId);
+
+      expect(target.leave).toHaveBeenCalledWith(`workspace:${workspaceId}`);
+      expect(target.emit).toHaveBeenCalledWith('error', {
+        message: 'Removed from workspace',
+      });
+      expect(other.leave).not.toHaveBeenCalled();
     });
   });
 

@@ -152,7 +152,7 @@ Railway does **not** use Helm `values.yaml`. Set Variables on each service in th
 | Variable                                              | Example / notes                                                                                                                                                                                               |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `DATABASE_URL`                                        | From Railway Postgres plugin                                                                                                                                                                                  |
-| `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET`            | Long random secrets                                                                                                                                                                                           |
+| `JWT_ACCESS_SECRET`                                   | Long random secret                                                                                                                                                                                            |
 | `FRONTEND_ORIGIN`                                     | `https://<frontend>.up.railway.app` (exact, for CORS + email links)                                                                                                                                           |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`           | Google Cloud OAuth client                                                                                                                                                                                     |
 | `GOOGLE_CALLBACK_URL`                                 | `https://<frontend>.up.railway.app/api/auth/google/callback`                                                                                                                                                  |
@@ -160,6 +160,7 @@ Railway does **not** use Helm `values.yaml`. Set Variables on each service in th
 | `RESEND_API_KEY`                                      | **Preferred** — [Resend](https://resend.com) HTTPS API                                                                                                                                                        |
 | `MAIL_FROM`                                           | After domain verify: `Task Tracker <noreply@yourdomain.com>`                                                                                                                                                  |
 | `AI_ASSISTANT_URL`                                    | Private URL of the AI service. Prefer a Variable Reference, e.g. `http://${{ai-assistant.RAILWAY_PRIVATE_DOMAIN}}:${{ai-assistant.PORT}}` (use your AI service’s exact name; port is often `8080` on Railway) |
+| `AI_ASSISTANT_INTERNAL_TOKEN`                         | Same value as on the AI service (`openssl rand -hex 32`). Required for assistant calls                                                                                                                        |
 | `NODE_ENV`                                            | `production`                                                                                                                                                                                                  |
 
 **Email (forgot-password / verify):** use Resend with a verified domain. Add the
@@ -193,12 +194,13 @@ New Railway service from this repo:
 3. Prefer **private networking only** — Nest proxies ask/embed; no public domain required
 4. Healthcheck: `GET /health/live` (ready probe hits Postgres at `/health/ready`)
 
-| Variable            | Example / notes                                                     |
-| ------------------- | ------------------------------------------------------------------- |
-| `DATABASE_URL`      | Same Postgres as backend (node-postgres; `?schema=public` optional) |
-| `OPENAI_API_KEY`    | Embeddings (`text-embedding-3-small`)                               |
-| `ANTHROPIC_API_KEY` | Claude answer + proposal extraction                                 |
-| `PORT`              | Set by Railway automatically; image defaults to `8000`              |
+| Variable                      | Example / notes                                                     |
+| ----------------------------- | ------------------------------------------------------------------- |
+| `DATABASE_URL`                | Same Postgres as backend (node-postgres; `?schema=public` optional) |
+| `OPENAI_API_KEY`              | Embeddings (`text-embedding-3-small`)                               |
+| `ANTHROPIC_API_KEY`           | Claude answer + proposal extraction                                 |
+| `AI_ASSISTANT_INTERNAL_TOKEN` | Shared secret for `/internal/*`, same as backend (min 32 chars)     |
+| `PORT`                        | Set by Railway automatically; image defaults to `8000`              |
 
 **Postgres / pgvector:** RAG migrations run `CREATE EXTENSION vector`. On the Railway
 Postgres plugin, enable it once (SQL shell or migrate job):
@@ -211,7 +213,9 @@ If the extension is not available on the plugin image, use a Postgres that ships
 pgvector (local compose / self-hosted use `pgvector/pgvector:pg16`).
 
 After the AI service is up and migrations are applied, enable per workspace
-(cost gate — not exposed in the product UI):
+(cost gate — not exposed in the product UI). Enabling also backfills embeddings
+for existing tasks, so the script needs `AI_ASSISTANT_URL` and
+`AI_ASSISTANT_INTERNAL_TOKEN` (or pass `--no-backfill`):
 
 ```
 cd backend
@@ -248,15 +252,15 @@ service never writes task mutations to the DB; Nest executes confirmed actions w
 
 ### What it can do
 
-| Capability                               | How                                                           |
-| ---------------------------------------- | ------------------------------------------------------------- |
-| Q&A over tasks                           | Vector retrieval + live project task snapshot when on a board |
-| Create / update task                     | Proposal → existing Nest task APIs (incl. `assigneeId`)       |
-| Bulk update / delete tasks               | Filter by keyword, assignee, status, **project id/name**      |
-| Create project / dedupe / delete project | Nest project APIs (`dedupe` / delete = ADMIN)                 |
-| Navigate to a project                    | Client-side `router.push` on **Go**                           |
-| Follow-ups (“yes”, “да”)                 | Last ~12 turns sent as `history`                              |
-| Persist thread                           | `localStorage` key `tt:assistant-chat:{userId}:{workspaceId}` |
+| Capability                               | How                                                                            |
+| ---------------------------------------- | ------------------------------------------------------------------------------ |
+| Q&A over tasks                           | Vector retrieval + live project task snapshot when on a board                  |
+| Create / update task                     | Proposal → existing Nest task APIs (incl. `assigneeId`)                        |
+| Bulk update / delete tasks               | Filter by keyword, assignee, status, **project id/name** (bulk delete = ADMIN) |
+| Create project / dedupe / delete project | Nest project APIs (`dedupe` / delete = ADMIN)                                  |
+| Navigate to a project                    | Client-side `router.push` on **Go**                                            |
+| Follow-ups (“yes”, “да”)                 | Last ~12 turns sent as `history`                                               |
+| Persist thread                           | `localStorage` key `tt:assistant-chat:{userId}:{workspaceId}`                  |
 
 ### UI
 
@@ -267,7 +271,9 @@ service never writes task mutations to the DB; Nest executes confirmed actions w
 
 ### Enable for a workspace (cost gate)
 
-Default is **off**. An operator enables paid LLM usage per workspace:
+Default is **off**. An operator enables paid LLM usage per workspace; this also
+indexes existing tasks (needs `AI_ASSISTANT_URL` + `AI_ASSISTANT_INTERNAL_TOKEN`
+in the environment, or `--no-backfill`):
 
 ```
 cd backend
@@ -284,6 +290,7 @@ npx ts-node scripts/seed-rag-demo.ts
 ### Security notes
 
 - Nest verifies workspace membership before calling the AI service
+- `/internal/*` on the AI service requires a shared secret (`x-internal-token`)
 - Retrieval / catalog SQL always filter by `workspaceId`
 - Empty bulk filters rejected (no “update entire workspace” by accident)
 - On a project board, bulk “all tasks” is forced to that `projectId`
@@ -292,12 +299,13 @@ npx ts-node scripts/seed-rag-demo.ts
 
 ### Env
 
-| Service      | Variable            | Notes                         |
-| ------------ | ------------------- | ----------------------------- |
-| Backend      | `AI_ASSISTANT_URL`  | e.g. `http://localhost:8000`  |
-| AI Assistant | `DATABASE_URL`      | Same Postgres (node-postgres) |
-| AI Assistant | `OPENAI_API_KEY`    | Embeddings                    |
-| AI Assistant | `ANTHROPIC_API_KEY` | Chat + proposal extraction    |
+| Service      | Variable                      | Notes                                    |
+| ------------ | ----------------------------- | ---------------------------------------- |
+| Backend      | `AI_ASSISTANT_URL`            | e.g. `http://localhost:8000`             |
+| AI Assistant | `DATABASE_URL`                | Same Postgres (node-postgres)            |
+| AI Assistant | `OPENAI_API_KEY`              | Embeddings                               |
+| AI Assistant | `ANTHROPIC_API_KEY`           | Chat + proposal extraction               |
+| Both         | `AI_ASSISTANT_INTERNAL_TOKEN` | Shared secret, `x-internal-token` header |
 
 ## Repo structure
 
@@ -468,6 +476,36 @@ guard. Added a dedicated IDOR unit test that was missing.
 time or by a different flow path. A shared `validateTaskOwnership` helper
 would have prevented this — DRY isn't just about saving lines, it's about
 ensuring security checks can't be forgotten.
+
+### IDOR in WebSocket `workspace:join` (same class, second time)
+
+**How I found it:** During a full codebase scan for a technical spec. The
+takeaway above recommended a shared ownership helper, but it was never
+extracted — so the next hand-written data path repeated the bug.
+
+**Root cause:** `TaskGateway.handleJoin` verified that the caller is a member
+of `workspaceId`, then loaded tasks for `board:sync` by `projectId` alone,
+never checking that the project belongs to that workspace. A user who is a
+member of _any_ workspace (e.g. one they created themselves) could send
+`{ workspaceId: <own>, projectId: <victim's project UUID> }` and receive the
+victim project's full task list. Worse than the `reorder` bug in two ways: it
+is a cross-tenant **read**, and it lives in a WebSocket handler, where
+`WorkspaceRolesGuard` and other HTTP guards don't run at all — every check
+there is manual.
+
+**Fix:** Extracted `common/workspace-scope.ts` — `findTaskInWorkspace`,
+`findProjectInWorkspace` (both accept a transaction client) and
+`assertInWorkspace` for queries that need a richer select. All task/project
+lookups by id in `TasksService`, `ProjectsService` and the gateway now go
+through it, replacing nine copy-pasted `workspaceId !==` checks. Added a
+gateway test for a foreign project (confirmed it fails with the fix reverted)
+and unit tests for the helper. While there, removed members are now evicted
+from the workspace room, since membership was also only checked at join time.
+
+**Takeaway:** Writing down a lesson isn't the same as encoding it. The
+ownership rule now lives in one function, and new data paths — especially
+non-HTTP ones like sockets or queues — should start from that helper rather
+than a raw `findUnique`.
 
 ### Cross-project task events leaking onto the wrong board
 

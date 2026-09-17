@@ -27,6 +27,9 @@ describe.skipIf(!hasIntegrationEnv)(
       if (!process.env['ANTHROPIC_API_KEY']) {
         process.env['ANTHROPIC_API_KEY'] = 'sk-ant-test-unused';
       }
+      if (!process.env['AI_ASSISTANT_INTERNAL_TOKEN']) {
+        process.env['AI_ASSISTANT_INTERNAL_TOKEN'] = 'x'.repeat(32);
+      }
       resetConfigCache();
       loadConfig();
 

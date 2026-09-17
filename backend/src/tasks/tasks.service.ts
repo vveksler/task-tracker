@@ -1,15 +1,18 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Inject,
   Injectable,
-  NotFoundException,
   Optional,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Prisma, TaskStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TaskGateway } from '../gateway/task.gateway';
+import {
+  assertInWorkspace,
+  findProjectInWorkspace,
+  findTaskInWorkspace,
+} from '../common/workspace-scope';
 import type { TaskPayload } from '../gateway/gateway.events';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
@@ -42,18 +45,7 @@ export class TasksService {
   ) {}
 
   async create(workspaceId: string, dto: CreateTaskDto) {
-    const project = await this.prisma.project.findUnique({
-      where: { id: dto.projectId },
-      select: { id: true, workspaceId: true },
-    });
-
-    if (!project) {
-      throw new NotFoundException('Project not found');
-    }
-
-    if (project.workspaceId !== workspaceId) {
-      throw new ForbiddenException('Project does not belong to this workspace');
-    }
+    await findProjectInWorkspace(this.prisma, workspaceId, dto.projectId);
 
     if (dto.assigneeId) {
       await this.validateAssignee(workspaceId, dto.assigneeId);
@@ -100,18 +92,7 @@ export class TasksService {
   }
 
   async findAllByProject(workspaceId: string, projectId: string) {
-    const project = await this.prisma.project.findUnique({
-      where: { id: projectId },
-      select: { workspaceId: true },
-    });
-
-    if (!project) {
-      throw new NotFoundException('Project not found');
-    }
-
-    if (project.workspaceId !== workspaceId) {
-      throw new ForbiddenException('Project does not belong to this workspace');
-    }
+    await findProjectInWorkspace(this.prisma, workspaceId, projectId);
 
     return this.prisma.task.findMany({
       where: { projectId },
@@ -126,35 +107,13 @@ export class TasksService {
       select: TASK_SELECT,
     });
 
-    if (!task) {
-      throw new NotFoundException('Task not found');
-    }
-
-    if (task.project.workspaceId !== workspaceId) {
-      throw new ForbiddenException('Task does not belong to this workspace');
-    }
-
+    // Rich select in one query; TASK_SELECT carries project.workspaceId.
+    assertInWorkspace(task, workspaceId, 'Task', (t) => t.project.workspaceId);
     return task;
   }
 
   async update(workspaceId: string, taskId: string, dto: UpdateTaskDto) {
-    const task = await this.prisma.task.findUnique({
-      where: { id: taskId },
-      select: {
-        id: true,
-        status: true,
-        projectId: true,
-        project: { select: { workspaceId: true } },
-      },
-    });
-
-    if (!task) {
-      throw new NotFoundException('Task not found');
-    }
-
-    if (task.project.workspaceId !== workspaceId) {
-      throw new ForbiddenException('Task does not belong to this workspace');
-    }
+    const task = await findTaskInWorkspace(this.prisma, workspaceId, taskId);
 
     if (dto.assigneeId) {
       await this.validateAssignee(workspaceId, dto.assigneeId);
@@ -360,15 +319,7 @@ export class TasksService {
     }
 
     if (resolvedProjectId) {
-      const project = await this.prisma.project.findUnique({
-        where: { id: resolvedProjectId },
-        select: { workspaceId: true },
-      });
-      if (!project || project.workspaceId !== workspaceId) {
-        throw new ForbiddenException(
-          'Project does not belong to this workspace',
-        );
-      }
+      await findProjectInWorkspace(this.prisma, workspaceId, resolvedProjectId);
     }
 
     const where: Prisma.TaskWhereInput = {
@@ -422,30 +373,11 @@ export class TasksService {
   }
 
   async remove(workspaceId: string, taskId: string) {
-    const task = await this.prisma.task.findUnique({
-      where: { id: taskId },
-      select: {
-        id: true,
-        projectId: true,
-        project: { select: { workspaceId: true } },
-      },
-    });
-
-    if (!task) {
-      throw new NotFoundException('Task not found');
-    }
-
-    if (task.project.workspaceId !== workspaceId) {
-      throw new ForbiddenException('Task does not belong to this workspace');
-    }
+    const task = await findTaskInWorkspace(this.prisma, workspaceId, taskId);
 
     await this.prisma.task.delete({ where: { id: taskId } });
 
-    this.gateway?.emitTaskDeleted(
-      task.project.workspaceId,
-      task.id,
-      task.projectId,
-    );
+    this.gateway?.emitTaskDeleted(task.workspaceId, task.id, task.projectId);
   }
 
   /** Validates that the assignee is a member of the workspace. */
@@ -520,24 +452,8 @@ export class TasksService {
   ) {
     const moved = await this.prisma.$transaction(
       async (tx) => {
-        const task = await tx.task.findUnique({
-          where: { id: taskId },
-          select: {
-            id: true,
-            projectId: true,
-            project: { select: { workspaceId: true } },
-          },
-        });
-
-        if (!task) {
-          throw new NotFoundException('Task not found');
-        }
-
-        if (task.project.workspaceId !== workspaceId) {
-          throw new ForbiddenException(
-            'Task does not belong to this workspace',
-          );
-        }
+        // Inside the Serializable tx so ownership and the move see one snapshot.
+        const task = await findTaskInWorkspace(tx, workspaceId, taskId);
 
         let newOrder: number;
 

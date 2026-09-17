@@ -9,7 +9,6 @@ export const appConfig = registerAs('app', () => ({
 export const jwtConfig = registerAs('jwt', () => ({
   accessSecret: process.env['JWT_ACCESS_SECRET'] ?? '',
   accessExpiresIn: process.env['JWT_ACCESS_EXPIRES_IN'] ?? '15m',
-  refreshSecret: process.env['JWT_REFRESH_SECRET'] ?? '',
   refreshExpiresIn: process.env['JWT_REFRESH_EXPIRES_IN'] ?? '7d',
 }));
 
@@ -39,6 +38,8 @@ export const redisConfig = registerAs('redis', () => ({
 // Internal URL of the AI RAG microservice (never exposed via Ingress).
 export const assistantConfig = registerAs('assistant', () => ({
   url: process.env['AI_ASSISTANT_URL'] ?? 'http://localhost:8000',
+  // Shared secret sent as x-internal-token; must match the AI service value.
+  internalToken: process.env['AI_ASSISTANT_INTERNAL_TOKEN'] ?? '',
 }));
 
 export type AppConfig = ReturnType<typeof appConfig>;

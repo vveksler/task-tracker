@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { Hono } from 'hono';
 import { stream } from 'hono/streaming';
 import { embedText, embeddingLiteral } from './embeddings.js';
@@ -23,8 +24,25 @@ export type EmbedBody = {
   description?: string | null;
 };
 
-export function createApp(): Hono {
+/** Constant-time compare; hashing first equalizes lengths for timingSafeEqual. */
+export function tokensMatch(provided: string, expected: string): boolean {
+  const a = createHash('sha256').update(provided).digest();
+  const b = createHash('sha256').update(expected).digest();
+  return timingSafeEqual(a, b);
+}
+
+export function createApp(internalToken: string): Hono {
   const app = new Hono();
+
+  // Health routes stay open for orchestrator probes; everything under
+  // /internal requires the shared secret from Nest.
+  app.use('/internal/*', async (c, next) => {
+    const provided = c.req.header('x-internal-token') ?? '';
+    if (!provided || !tokensMatch(provided, internalToken)) {
+      return c.json({ detail: 'unauthorized' }, 401);
+    }
+    await next();
+  });
 
   app.get('/', (c) => c.json({ status: 'ok' }));
   app.get('/health/live', (c) => c.json({ status: 'ok' }));

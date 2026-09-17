@@ -36,6 +36,7 @@ aiAssistant:
   imagePullPolicy: IfNotPresent
   openaiApiKey: "sk-..."
   anthropicApiKey: "sk-ant-..."
+  internalToken: "CHANGE_ME_LONG_RANDOM_INTERNAL_TOKEN"
 
 google:
   clientId: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
